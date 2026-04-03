@@ -1,0 +1,28 @@
+# ── Caddyfile per Privacy Remover su rete LAN / Tailscale ──────────────────────
+#
+# Scenari supportati:
+#
+# A) LAN con IP fisso (es. 192.168.1.100) — HTTPS auto-signed:
+#    Sostituisci "privacy.local" con l'hostname o IP del tuo server.
+#    Caddy genera un certificato self-signed automaticamente.
+#
+# B) Tailscale HTTPS — se hai attivato "HTTPS" nella Tailscale admin console:
+#    Usa il tuo hostname Tailscale (formato: machine.tail-xxxxx.ts.net)
+#
+# Uso con docker-compose:
+#   - Aggiungi il servizio caddy (vedi commento in docker-compose.yml)
+#   - Il container app deve NON esporre più la porta 3000 direttamente
+
+privacy.local {
+  # O usa il tuo hostname Tailscale es: myhomeserver.tail-xxxxx.ts.net
+  # O usa https://192.168.1.100 per accesso via IP (richiede tls internal)
+  tls internal
+
+  reverse_proxy app:3000
+}
+
+# Per accesso via IP senza hostname configurato:
+# :443 {
+#   tls internal
+#   reverse_proxy app:3000
+# }

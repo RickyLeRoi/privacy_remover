@@ -1,0 +1,17 @@
+# Env — NEVER commit real credentials
+.env
+
+# Build output
+dist/
+node_modules/
+
+# Evidence files — private data
+evidence/
+backups/
+
+# Prisma client (generated)
+node_modules/.prisma/
+
+# OS
+.DS_Store
+Thumbs.db

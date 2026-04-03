@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="it" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Privacy Remover — dashboard</title>
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js" defer></script>
+<style>
+/* ── TOKENS ──────────────────────────────────────────── */
+:root,[data-theme="light"]{
+  --text-xs:clamp(.75rem,.7rem + .25vw,.875rem);
+  --text-sm:clamp(.875rem,.8rem + .35vw,1rem);
+  --text-base:clamp(1rem,.95rem + .25vw,1.125rem);
+  --text-lg:clamp(1.125rem,1rem + .75vw,1.5rem);
+  --text-xl:clamp(1.5rem,1.2rem + 1.25vw,2.25rem);
+  --sp1:.25rem;--sp2:.5rem;--sp3:.75rem;--sp4:1rem;--sp5:1.25rem;--sp6:1.5rem;--sp8:2rem;--sp10:2.5rem;
+  --bg:#f7f6f2;--surf:#f9f8f5;--surf2:#fbfbf9;--off:#f3f0ec;--off2:#edeae5;
+  --border:color-mix(in oklab,#28251d 10%,transparent);
+  --border-strong:color-mix(in oklab,#28251d 18%,transparent);
+  --text:#28251d;--muted:#6e6c67;--faint:#b0aea8;--inv:#f9f8f4;
+  --pri:#01696f;--pri-h:#0c4e54;--pri-hl:#d4e7e5;
+  --ok:#437a22;--ok-hl:color-mix(in oklab,#437a22 13%,var(--surf));
+  --warn:#964219;--warn-hl:color-mix(in oklab,#964219 13%,var(--surf));
+  --err:#a12c7b;--err-hl:color-mix(in oklab,#a12c7b 13%,var(--surf));
+  --info:#006494;--info-hl:color-mix(in oklab,#006494 13%,var(--surf));
+  --r-sm:.375rem;--r-md:.5rem;--r-lg:.75rem;--r-xl:1rem;--r-full:9999px;
+  --sh-sm:0 1px 2px oklch(.2 .01 80/.06);--sh-md:0 6px 20px oklch(.2 .01 80/.09);
+  --trans:180ms cubic-bezier(.16,1,.3,1);
+  --sidebar-w:220px;--header-h:56px;
+}
+[data-theme="dark"]{
+  --bg:#141312;--surf:#1a1917;--surf2:#1e1d1b;--off:#222120;--off2:#2a2927;
+  --border:color-mix(in oklab,#cdccca 9%,transparent);
+  --border-strong:color-mix(in oklab,#cdccca 18%,transparent);
+  --text:#cdccca;--muted:#908e89;--faint:#5a5957;--inv:#141312;
+  --pri:#4f98a3;--pri-h:#227f8b;--pri-hl:color-mix(in oklab,#4f98a3 14%,var(--surf));
+  --ok:#6daa45;--ok-hl:color-mix(in oklab,#6daa45 14%,var(--surf));
+  --warn:#bb653b;--warn-hl:color-mix(in oklab,#bb653b 14%,var(--surf));
+  --err:#d163a7;--err-hl:color-mix(in oklab,#d163a7 14%,var(--surf));
+  --info:#5591c7;--info-hl:color-mix(in oklab,#5591c7 14%,var(--surf));
+  --sh-sm:0 1px 2px oklch(0 0 0/.22);--sh-md:0 6px 20px oklch(0 0 0/.36);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;-webkit-font-smoothing:antialiased}
+body{font-family:'Satoshi',sans-serif;font-size:var(--text-sm);line-height:1.55;color:var(--text);background:var(--bg)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{border:none;background:none;cursor:pointer}
+input,select,textarea{border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--surf2);padding:.65rem .75rem;width:100%;transition:border-color var(--trans),box-shadow var(--trans)}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--pri);box-shadow:0 0 0 3px color-mix(in oklab,var(--pri) 20%,transparent)}
+textarea{resize:vertical;min-height:90px}
+:focus-visible{outline:2px solid var(--pri);outline-offset:3px;border-radius:var(--r-sm)}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+.skeleton{background:linear-gradient(90deg,var(--off) 25%,var(--off2) 50%,var(--off) 75%);background-size:200% 100%;animation:shimmer 1.4s ease-in-out infinite;border-radius:var(--r-sm)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{width:16px;height:16px;border:2px solid var(--border-strong);border-top-color:var(--pri);border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.fade-in{animation:fadeIn .22s ease-out}
+@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+/* ── LAYOUT ──────────────────────────────────────────── */
+.shell{display:grid;grid-template-columns:var(--sidebar-w) 1fr;grid-template-rows:var(--header-h) 1fr;height:100dvh}
+/* ── SIDEBAR ──────────────────────────────────────────── */
+.sidebar{grid-row:1/-1;background:var(--surf);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;overscroll-behavior:contain;padding:var(--sp4) 0}
+.brand{display:flex;align-items:center;gap:var(--sp3);padding:var(--sp3) var(--sp5) var(--sp6);border-bottom:1px solid var(--border)}
+.logo-mark{width:32px;height:32px;padding:7px;border-radius:var(--r-md);background:var(--pri-hl);color:var(--pri);flex-shrink:0}
+.brand-name{font-weight:700;font-size:var(--text-sm);letter-spacing:.01em}
+.brand-sub{font-size:var(--text-xs);color:var(--muted)}
+.nav{padding:var(--sp4) 0;flex:1;display:flex;flex-direction:column;gap:.15rem}
+.nav-section{padding:var(--sp3) var(--sp5) var(--sp2);font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.08em;color:var(--faint);font-weight:700}
+.nav-item{display:flex;align-items:center;gap:var(--sp3);padding:.65rem var(--sp5);border-radius:0;color:var(--muted);font-size:var(--text-sm);font-weight:500;transition:background var(--trans),color var(--trans);cursor:pointer;text-decoration:none;border:none;width:100%;background:none;text-align:left}
+.nav-item:hover{background:var(--off);color:var(--text)}
+.nav-item.active{background:var(--pri-hl);color:var(--pri);font-weight:700}
+.nav-item svg{flex-shrink:0;opacity:.75}
+.nav-item.active svg{opacity:1}
+.sidebar-footer{padding:var(--sp4) var(--sp5);border-top:1px solid var(--border);display:flex;align-items:center;gap:var(--sp3)}
+.theme-btn{min-width:32px;min-height:32px;display:grid;place-items:center;border-radius:var(--r-full);background:var(--off);color:var(--muted);transition:background var(--trans),color var(--trans)}
+.theme-btn:hover{background:var(--off2);color:var(--text)}
+/* ── TOPBAR ──────────────────────────────────────────── */
+.topbar{grid-column:2;background:color-mix(in oklab,var(--bg) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 var(--sp6);position:sticky;top:0;z-index:10;height:var(--header-h);gap:var(--sp4)}
+.page-title{font-weight:700;font-size:var(--text-base)}
+.topbar-actions{display:flex;align-items:center;gap:var(--sp3)}
+/* ── MAIN ──────────────────────────────────────────── */
+.main{grid-column:2;overflow-y:auto;overscroll-behavior:contain;padding:var(--sp6)}
+/* ── BUTTONS ──────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;gap:var(--sp2);min-height:36px;padding:0 var(--sp4);border-radius:var(--r-full);font-size:var(--text-sm);font-weight:700;transition:background var(--trans),color var(--trans),opacity var(--trans)}
+.btn-primary{background:var(--pri);color:var(--inv)}
+.btn-primary:hover{background:var(--pri-h)}
+.btn-ghost{background:var(--off);color:var(--text);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--off2)}
+.btn-danger{background:var(--err-hl);color:var(--err)}
+.btn-danger:hover{opacity:.8}
+.btn-sm{min-height:30px;padding:0 var(--sp3);font-size:var(--text-xs)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+/* ── CHIPS ──────────────────────────────────────────── */
+.chip{display:inline-flex;align-items:center;gap:var(--sp1);padding:.2rem .6rem;border-radius:var(--r-full);font-size:var(--text-xs);font-weight:700;letter-spacing:.02em;white-space:nowrap}
+.chip-ok{background:var(--ok-hl);color:var(--ok)}
+.chip-warn{background:var(--warn-hl);color:var(--warn)}
+.chip-err{background:var(--err-hl);color:var(--err)}
+.chip-info{background:var(--info-hl);color:var(--info)}
+.chip-muted{background:var(--off2);color:var(--muted)}
+.chip-pri{background:var(--pri-hl);color:var(--pri)}
+/* ── KPI GRID ──────────────────────────────────────────── */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:var(--sp4);margin-bottom:var(--sp6)}
+.kpi{background:var(--surf);border:1px solid var(--border);border-radius:var(--r-xl);padding:var(--sp5);display:grid;gap:var(--sp2);box-shadow:var(--sh-sm)}
+.kpi-label{font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;display:flex;align-items:center;gap:var(--sp2)}
+.kpi-value{font-size:var(--text-xl);font-weight:700;font-variant-numeric:tabular-nums lining-nums;line-height:1}
+.kpi-sub{font-size:var(--text-xs);color:var(--muted)}
+/* ── CARDS ──────────────────────────────────────────── */
+.card{background:var(--surf);border:1px solid var(--border);border-radius:var(--r-xl);box-shadow:var(--sh-sm)}
+.card-head{padding:var(--sp5) var(--sp5) 0;display:flex;align-items:center;justify-content:space-between;gap:var(--sp4)}
+.card-body{padding:var(--sp5)}
+.card-title{font-weight:700;font-size:var(--text-base)}
+/* ── TABLE ──────────────────────────────────────────── */
+.tbl-wrap{overflow-x:auto;border-radius:var(--r-xl);border:1px solid var(--border);background:var(--surf)}
+table{width:100%;border-collapse:collapse;font-size:var(--text-sm)}
+thead th{padding:var(--sp3) var(--sp4);text-align:left;font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700;background:var(--off);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:1;white-space:nowrap}
+tbody tr{border-bottom:1px solid var(--border);transition:background var(--trans)}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:var(--off)}
+td{padding:var(--sp3) var(--sp4);vertical-align:middle;font-variant-numeric:tabular-nums}
+.td-actions{display:flex;gap:var(--sp2);align-items:center}
+/* ── MODAL ──────────────────────────────────────────── */
+.overlay{position:fixed;inset:0;background:oklch(.1 0 0/.55);z-index:100;display:grid;place-items:center;padding:var(--sp6);backdrop-filter:blur(4px)}
+.modal{background:var(--surf);border:1px solid var(--border);border-radius:var(--r-xl);box-shadow:var(--sh-md);width:100%;max-width:520px;max-height:90dvh;overflow-y:auto;animation:slideUp .2s ease-out}
+.modal-head{padding:var(--sp5) var(--sp6);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:var(--sp4)}
+.modal-title{font-weight:700;font-size:var(--text-base)}
+.modal-close{min-width:36px;min-height:36px;display:grid;place-items:center;border-radius:var(--r-full);color:var(--muted);transition:background var(--trans),color var(--trans)}
+.modal-close:hover{background:var(--off);color:var(--text)}
+.modal-body{padding:var(--sp6);display:grid;gap:var(--sp4)}
+.modal-foot{padding:var(--sp4) var(--sp6);border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:var(--sp3)}
+/* ── FORM ──────────────────────────────────────────── */
+.field{display:grid;gap:var(--sp2)}
+.field label{font-size:var(--text-xs);font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.field-hint{font-size:var(--text-xs);color:var(--faint)}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp4)}
+/* ── TOAST ──────────────────────────────────────────── */
+.toast-rack{position:fixed;bottom:var(--sp6);right:var(--sp6);display:flex;flex-direction:column;gap:var(--sp3);z-index:200;pointer-events:none}
+.toast{min-width:240px;max-width:340px;padding:var(--sp3) var(--sp4);border-radius:var(--r-lg);font-size:var(--text-sm);font-weight:500;box-shadow:var(--sh-md);animation:slideUp .2s ease-out;pointer-events:all;display:flex;align-items:center;gap:var(--sp3)}
+.toast-ok{background:var(--ok-hl);color:var(--ok);border:1px solid color-mix(in oklab,var(--ok) 25%,transparent)}
+.toast-err{background:var(--err-hl);color:var(--err);border:1px solid color-mix(in oklab,var(--err) 25%,transparent)}
+.toast-info{background:var(--info-hl);color:var(--info);border:1px solid color-mix(in oklab,var(--info) 25%,transparent)}
+/* ── EMPTY STATE ──────────────────────────────────────────── */
+.empty{display:flex;flex-direction:column;align-items:center;text-align:center;padding:var(--sp10) var(--sp8);color:var(--muted);gap:var(--sp4)}
+.empty svg{color:var(--faint)}
+.empty h3{color:var(--text);font-size:var(--text-base);font-weight:700}
+.empty p{max-width:36ch;font-size:var(--text-sm)}
+/* ── LOGIN ──────────────────────────────────────────── */
+#view-login{display:flex;align-items:center;justify-content:center;height:100dvh;padding:var(--sp6)}
+.login-box{background:var(--surf);border:1px solid var(--border);border-radius:var(--r-xl);box-shadow:var(--sh-md);padding:var(--sp8);width:100%;max-width:400px;display:grid;gap:var(--sp5)}
+.login-brand{display:flex;align-items:center;gap:var(--sp3);margin-bottom:var(--sp2)}
+.login-title{font-weight:700;font-size:var(--text-lg)}
+.login-sub{color:var(--muted);font-size:var(--text-sm)}
+/* ── CODE BLOCK ──────────────────────────────────────────── */
+.codebox{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:var(--text-xs);background:var(--off);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--sp4);overflow:auto;white-space:pre-wrap;word-break:break-word;color:var(--text);line-height:1.7}
+/* ── FILTERS ──────────────────────────────────────────── */
+.filters{display:flex;flex-wrap:wrap;gap:var(--sp3);margin-bottom:var(--sp4);align-items:center}
+.filter-select{min-height:36px;min-width:160px;width:auto;padding:.4rem .7rem;border-radius:var(--r-full);font-size:var(--text-xs);font-weight:700}
+/* ── BADGE group ──────────────────────────────────────────── */
+.key-badges{display:flex;flex-wrap:wrap;gap:var(--sp1)}
+/* ── ALERT ──────────────────────────────────────────── */
+.alert{padding:var(--sp4);border-radius:var(--r-lg);font-size:var(--text-sm);display:flex;gap:var(--sp3);align-items:flex-start}
+.alert-warn{background:var(--warn-hl);color:var(--warn);border:1px solid color-mix(in oklab,var(--warn) 20%,transparent)}
+.alert-err{background:var(--err-hl);color:var(--err);border:1px solid color-mix(in oklab,var(--err) 20%,transparent)}
+.alert-info{background:var(--info-hl);color:var(--info);border:1px solid color-mix(in oklab,var(--info) 20%,transparent)}
+/* ── RESPONSIVE ──────────────────────────────────────────── */
+@media(max-width:768px){
+  .shell{grid-template-columns:1fr;grid-template-rows:var(--header-h) 1fr}
+  .sidebar{display:none}
+  .topbar{grid-column:1}
+  .main{grid-column:1}
+  .field-row{grid-template-columns:1fr}
+  .kpi-grid{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="view-login" class="hidden">
+  <div class="login-box fade-in">
+    <div class="login-brand">
+      <svg class="logo-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-label="logo">
+        <path d="M12 2.8 19 5.8v5.8c0 4.5-2.6 7.8-7 9.6-4.4-1.8-7-5.1-7-9.6V5.8l7-3z"/>
+        <path d="M9 12h6M9 9h6M9 15h3.5"/>
+      </svg>
+      <div>
+        <div class="login-title">Privacy Removal</div>
+        <div class="login-sub">Dashboard privata — solo rete locale</div>
+      </div>
+    </div>
+    <div class="field">
+      <label for="inp-api">URL API</label>
+      <input id="inp-api" type="url" placeholder="http://localhost:3000" value="http://localhost:3000"/>
+    </div>
+    <div class="field">
+      <label for="inp-token">Bearer Token</label>
+      <input id="inp-token" type="password" placeholder="La tua password"/>
+      <div class="field-hint">Generata con bcrypt nel file .env</div>
+    </div>
+    <button class="btn btn-primary" id="btn-login" style="width:100%">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
+      Accedi
+    </button>
+    <button class="btn btn-ghost" id="btn-demo" style="width:100%;margin-top:-.5rem">
+      Usa dati demo (offline)
+    </button>
+  </div>
+</div>
+
+<!-- SHELL -->
+<div id="view-shell" class="shell hidden">
+  <!-- sidebar -->
+  <nav class="sidebar" aria-label="Navigazione">
+    <div class="brand">
+      <svg class="logo-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-label="logo">
+        <path d="M12 2.8 19 5.8v5.8c0 4.5-2.6 7.8-7 9.6-4.4-1.8-7-5.1-7-9.6V5.8l7-3z"/>
+        <path d="M9 12h6M9 9h6M9 15h3.5"/>
+      </svg>
+      <div>
+        <div class="brand-name">Privacy Removal</div>
+        <div class="brand-sub">Uso esclusivo famiglia</div>
+      </div>
+    </div>
+    <div class="nav" id="sidebar-nav">
+      <span class="nav-section">Panoramica</span>
+      <button class="nav-item active" data-route="dashboard">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Dashboard
+      </button>
+      <span class="nav-section">Dati</span>
+      <button class="nav-item" data-route="persone">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Persone
+      </button>
+      <button class="nav-item" data-route="broker">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v6c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 11v6c0 1.66 4.03 3 9 3s9-1.34 9-3v-6"/></svg>
+        Broker
+      </button>
+      <button class="nav-item" data-route="casi">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        Casi
+      </button>
+      <span class="nav-section">Attività</span>
+      <button class="nav-item" data-route="verifiche">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Verifiche
+      </button>
+    </div>
+    <div class="sidebar-footer">
+      <button class="theme-btn" id="theme-toggle" aria-label="Cambia tema">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:var(--text-xs);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="conn-label">Connesso</div>
+        <div style="font-size:var(--text-xs);color:var(--muted)" id="conn-url">localhost:3000</div>
+        <div style="font-size:var(--text-xs);color:var(--muted);margin-top:2px" id="imap-status-label" title="Stato polling IMAP"></div>
+      </div>
+      <button class="btn btn-ghost btn-sm" id="btn-logout">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
+    </div>
+  </nav>
+  <!-- topbar -->
+  <header class="topbar">
+    <div class="page-title" id="page-title">Dashboard</div>
+    <div class="topbar-actions" id="topbar-actions"></div>
+  </header>
+  <!-- main -->
+  <main class="main" id="main-content" role="main"></main>
+</div>
+
+<!-- MODAL CONTAINER -->
+<div id="modal-root"></div>
+<!-- TOAST RACK -->
+<div class="toast-rack" id="toast-rack" aria-live="polite"></div>
+
+<script>
+'use strict';
+// ──────────────────────────────────────────────────────────────
+// STATE
+// ──────────────────────────────────────────────────────────────
+const S = {
+  apiUrl: '',
+  token: '',
+  demo: false,
+  persons: [],
+  brokers: [],
+  cases: [],
+  tasks: [],
+  loading: false,
+};
+
+// ──────────────────────────────────────────────────────────────
+// DEMO DATA
+// ──────────────────────────────────────────────────────────────
+const DEMO = {
+  persons: [
+    {id:'p1',label:'Ricky',emails:['ricky@example.com'],phones:['+39 333 1111111'],addresses:[{id:'a1',street:'Via Roma 1',city:'Milano',country:'IT',current:true}],aliases:['rick.g']},
+    {id:'p2',label:'Giulia',emails:['giulia@example.com'],phones:['+39 335 2222222'],addresses:[{id:'a2',street:'Via Roma 1',city:'Milano',country:'IT',current:true}],aliases:[]},
+    {id:'p3',label:'Marco',emails:['marco.giordano@gmail.com'],phones:['+39 340 3333333'],addresses:[{id:'a3',street:'Via Verdi 5',city:'Torino',country:'IT',current:true}],aliases:['m.giordano']},
+  ],
+  brokers: [
+    {id:'b1',name:'Spokeo',country:'US',legalBasis:'gdpr',contactMethod:'form',contactTarget:'https://www.spokeo.com/optout',slaInDays:10,requiresFullName:false,requiresIdProof:false,acceptedDiscoveryKeys:['email','phone']},
+    {id:'b2',name:'BeenVerified',country:'US',legalBasis:'gdpr',contactMethod:'email',contactTarget:'optout@beenverified.com',slaInDays:30,requiresFullName:false,requiresIdProof:false,acceptedDiscoveryKeys:['email']},
+    {id:'b3',name:'Radaris',country:'US',legalBasis:'gdpr',contactMethod:'form',contactTarget:'https://radaris.com/page/how-to-remove',slaInDays:30,requiresFullName:true,requiresIdProof:false,acceptedDiscoveryKeys:['email','address'],notes:'Richiede conferma nome in fase di risposta.'},
+    {id:'b4',name:'Truecaller',country:'SE',legalBasis:'gdpr',contactMethod:'form',contactTarget:'https://www.truecaller.com/unlisting',slaInDays:7,requiresFullName:false,requiresIdProof:false,acceptedDiscoveryKeys:['phone']},
+    {id:'b5',name:'PimEyes',country:'PL',legalBasis:'gdpr',contactMethod:'email',contactTarget:'opt-out@pimeyes.com',slaInDays:30,requiresFullName:false,requiresIdProof:false,acceptedDiscoveryKeys:['email'],notes:'Motore ricerca facciale. Alta priorità.'},
+    {id:'b6',name:'LexisNexis',country:'US',legalBasis:'gdpr',contactMethod:'form',contactTarget:'https://optout.lexisnexis.com',slaInDays:30,requiresFullName:false,requiresIdProof:true,acceptedDiscoveryKeys:['email','address'],notes:'Richiede documento. Cifrare allegati.'},
+    {id:'b7',name:'Pipl',country:'US',legalBasis:'gdpr',contactMethod:'email',contactTarget:'privacy@pipl.com',slaInDays:30,requiresFullName:false,requiresIdProof:false,acceptedDiscoveryKeys:['email']},
+    {id:'b8',name:'Whitepages',country:'US',legalBasis:'gdpr',contactMethod:'form',contactTarget:'https://www.whitepages.com/suppression-requests',slaInDays:14,requiresFullName:false,requiresIdProof:false,acceptedDiscoveryKeys:['email','phone','address']},
+    {id:'b9',name:'Acxiom',country:'US',legalBasis:'gdpr',contactMethod:'form',contactTarget:'https://isapps.acxiom.com/optout/optout.aspx',slaInDays:30,requiresFullName:false,requiresIdProof:false,acceptedDiscoveryKeys:['email','address']},
+  ],
+  cases: [
+    {id:'c1',personId:'p1',brokerId:'b5',status:'CONFIRMED',openedAt:'2026-02-10',dueAt:'2026-03-12',closedAt:'2026-02-28',nextCheckAt:'2026-05-28'},
+    {id:'c2',personId:'p1',brokerId:'b4',status:'SENT',openedAt:'2026-03-01',dueAt:'2026-03-08',closedAt:null,nextCheckAt:null},
+    {id:'c3',personId:'p2',brokerId:'b1',status:'NEEDS_RECHECK',openedAt:'2026-02-01',dueAt:'2026-02-11',closedAt:null,nextCheckAt:null},
+    {id:'c4',personId:'p3',brokerId:'b3',status:'NOT_STARTED',openedAt:'2026-04-01',dueAt:'2026-05-01',closedAt:null,nextCheckAt:null},
+    {id:'c5',personId:'p2',brokerId:'b6',status:'SENT',openedAt:'2026-03-20',dueAt:'2026-04-19',closedAt:null,nextCheckAt:null},
+    {id:'c6',personId:'p1',brokerId:'b2',status:'CONFIRMED',openedAt:'2026-01-15',dueAt:'2026-02-14',closedAt:'2026-02-05',nextCheckAt:'2026-05-05'},
+    {id:'c7',personId:'p3',brokerId:'b8',status:'NOT_STARTED',openedAt:'2026-04-02',dueAt:'2026-04-16',closedAt:null,nextCheckAt:null},
+  ],
+};
+
+// ──────────────────────────────────────────────────────────────
+// API
+// ──────────────────────────────────────────────────────────────
+async function api(method, path, body) {
+  if (S.demo) return null;
+  const res = await fetch(S.apiUrl + path, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + S.token,
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json().catch(() => null);
+}
+
+async function loadAll() {
+  if (S.demo) {
+    S.persons = DEMO.persons;
+    S.brokers = DEMO.brokers;
+    S.cases   = DEMO.cases;
+    S.tasks   = [];
+    return;
+  }
+  try {
+    const [persons, brokers, cases, tasks] = await Promise.all([
+      api('GET','/api/persons'),
+      api('GET','/api/brokers'),
+      api('GET','/api/cases'),
+      api('GET','/api/cases/tasks/pending'),
+    ]);
+    S.persons = persons || [];
+    S.brokers = brokers || [];
+    S.cases   = cases   || [];
+    S.tasks   = tasks   || [];
+  } catch(e) { toast('err', 'Errore caricamento: ' + e.message); }
+  loadImapStatus();
+}
+
+async function loadImapStatus() {
+  if (S.demo) return;
+  try {
+    const st = await api('GET', '/api/imap/status');
+    const el = document.getElementById('imap-status-label');
+    if (!el) return;
+    if (!st.enabled || !st.configured) {
+      el.textContent = '📭 IMAP disabilitato';
+      el.title = st.enabled ? 'Variabili IMAP non configurate' : 'IMAP_ENABLED=false';
+    } else if (st.lastError) {
+      el.textContent = '⚠ IMAP errore';
+      el.title = st.lastError;
+      el.style.color = 'var(--err)';
+    } else {
+      const when = st.lastPoll ? new Date(st.lastPoll).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}) : '—';
+      el.textContent = `📬 IMAP: ${when}`;
+      el.title = `Ultimo polling: ${st.lastPoll ?? 'mai'}\nAccount: ${st.user ?? '—'}`;
+      el.style.color = 'var(--muted)';
+    }
+  } catch(_) { /* non critico */ }
+}
+
+// ──────────────────────────────────────────────────────────────
+// HELPERS
+// ──────────────────────────────────────────────────────────────
+function esc(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmt(d){ if(!d) return '—'; return new Date(d).toLocaleDateString('it-IT',{day:'2-digit',month:'short',year:'numeric'}); }
+function personById(id){ return S.persons.find(p=>p.id===id)||{label:'?'}; }
+function brokerById(id){ return S.brokers.find(b=>b.id===id)||{name:'?'}; }
+
+const STATUS_META = {
+  NOT_STARTED: {label:'Non avviato',cls:'chip-muted'},
+  SENT:        {label:'Inviata',cls:'chip-warn'},
+  AWAITING_RESPONSE:{label:'Risposta attesa',cls:'chip-info'},
+  CONFIRMED:   {label:'Rimossa',cls:'chip-ok'},
+  FAILED:      {label:'Fallita',cls:'chip-err'},
+  NEEDS_RECHECK:{label:'Verifica',cls:'chip-err'},
+  CLOSED:      {label:'Chiusa',cls:'chip-muted'},
+};
+function chipStatus(s){
+  const m = STATUS_META[s] || {label:s,cls:'chip-muted'};
+  return `<span class="chip ${m.cls}">${m.label}</span>`;
+}
+function chipKey(k){
+  const map={email:'Email',phone:'Telefono',address:'Indirizzo'};
+  return `<span class="chip chip-pri">${map[k]||k}</span>`;
+}
+
+// ──────────────────────────────────────────────────────────────
+// TOAST
+// ──────────────────────────────────────────────────────────────
+function toast(type, msg) {
+  const rack = document.getElementById('toast-rack');
+  const t = document.createElement('div');
+  const cls = type==='ok'?'toast-ok':type==='err'?'toast-err':'toast-info';
+  t.className = `toast ${cls}`;
+  t.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg><span>${esc(msg)}</span>`;
+  rack.appendChild(t);
+  setTimeout(()=>t.remove(), 3500);
+}
+
+// ──────────────────────────────────────────────────────────────
+// MODAL
+// ──────────────────────────────────────────────────────────────
+function openModal(html) {
+  const root = document.getElementById('modal-root');
+  root.innerHTML = `<div class="overlay" id="overlay">${html}</div>`;
+  document.getElementById('overlay').addEventListener('click', e => {
+    if(e.target.id==='overlay') closeModal();
+  });
+  const mc = root.querySelector('.modal-close');
+  if(mc) mc.addEventListener('click', closeModal);
+}
+function closeModal() {
+  document.getElementById('modal-root').innerHTML = '';
+}
+
+// ──────────────────────────────────────────────────────────────
+// ROUTER
+// ──────────────────────────────────────────────────────────────
+const TITLES = { dashboard:'Dashboard', persone:'Persone', broker:'Broker', casi:'Casi', verifiche:'Verifiche' };
+
+function navigate(route) {
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.route === route);
+  });
+  document.getElementById('page-title').textContent = TITLES[route] || route;
+  const views = { dashboard: renderDashboard, persone: renderPersone, broker: renderBroker, casi: renderCasi, verifiche: renderVerifiche };
+  const fn = views[route];
+  if(fn) { document.getElementById('main-content').innerHTML = ''; fn(); }
+}
+
+window.addEventListener('hashchange', () => navigate(location.hash.slice(1)||'dashboard'));
+
+// ──────────────────────────────────────────────────────────────
+// VIEW: DASHBOARD
+// ──────────────────────────────────────────────────────────────
+function renderDashboard() {
+  const main = document.getElementById('main-content');
+  document.getElementById('topbar-actions').innerHTML = '';
+
+  const total   = S.cases.length;
+  const sent    = S.cases.filter(c=>c.status==='SENT'||c.status==='AWAITING_RESPONSE').length;
+  const done    = S.cases.filter(c=>c.status==='CONFIRMED').length;
+  const overdue = S.cases.filter(c=>c.status==='NEEDS_RECHECK').length;
+  const pct     = total ? Math.round(done/total*100) : 0;
+
+  // Overdue + recheck rows
+  const urgent = S.cases.filter(c=>c.status==='NEEDS_RECHECK'||c.status==='SENT');
+
+  main.innerHTML = `
+  <div class="fade-in">
+    <div class="kpi-grid">
+      <div class="kpi">
+        <div class="kpi-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Casi totali</div>
+        <div class="kpi-value">${total}</div>
+        <div class="kpi-sub">${S.persons.length} persone · ${S.brokers.length} broker</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> In corso</div>
+        <div class="kpi-value" style="color:var(--warn)">${sent}</div>
+        <div class="kpi-sub">Inviate, risposta attesa</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Rimosse</div>
+        <div class="kpi-value" style="color:var(--ok)">${done}</div>
+        <div class="kpi-sub">${pct}% completate</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Da verificare</div>
+        <div class="kpi-value" style="color:var(--err)">${overdue}</div>
+        <div class="kpi-sub">Nessuna risposta ricevuta</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Casi urgenti</div>
+        <button class="btn btn-ghost btn-sm" onclick="location.hash='#casi'">Vedi tutti</button>
+      </div>
+      <div class="card-body">
+        ${urgent.length === 0
+          ? `<div class="empty"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><h3>Tutto in ordine</h3><p>Nessun caso urgente o scaduto.</p></div>`
+          : `<div class="tbl-wrap"><table>
+              <thead><tr><th>Persona</th><th>Broker</th><th>Stato</th><th>Scadenza</th><th></th></tr></thead>
+              <tbody>${urgent.map(c=>`
+                <tr>
+                  <td>${esc(personById(c.personId).label)}</td>
+                  <td><strong>${esc(brokerById(c.brokerId).name)}</strong></td>
+                  <td>${chipStatus(c.status)}</td>
+                  <td style="color:var(--err)">${fmt(c.dueAt)}</td>
+                  <td class="td-actions">
+                    ${c.status==='NOT_STARTED'||c.status==='NEEDS_RECHECK'
+                      ?`<button class="btn btn-ghost btn-sm" onclick="showSendModal('${c.id}')">Invia</button>`:''}
+                    ${c.status==='SENT'||c.status==='AWAITING_RESPONSE'
+                      ?`<button class="btn btn-ghost btn-sm" onclick="confirmCase('${c.id}')">Conferma</button>`:''}
+                  </td>
+                </tr>`).join('')}
+              </tbody>
+            </table></div>`
+        }
+      </div>
+    </div>
+  </div>`;
+}
+
+// ──────────────────────────────────────────────────────────────
+// VIEW: PERSONE
+// ──────────────────────────────────────────────────────────────
+function renderPersone() {
+  const main = document.getElementById('main-content');
+  document.getElementById('topbar-actions').innerHTML =
+    `<button class="btn btn-primary" onclick="showAddPersonModal()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Aggiungi persona
+    </button>`;
+
+  main.innerHTML = `<div class="fade-in">
+    ${S.persons.length===0
+      ? `<div class="empty"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><h3>Nessuna persona</h3><p>Aggiungi i membri della tua famiglia.</p><button class="btn btn-primary" onclick="showAddPersonModal()">Aggiungi</button></div>`
+      : `<div class="tbl-wrap"><table>
+          <thead><tr><th>Etichetta</th><th>Email</th><th>Telefono</th><th>Indirizzi</th><th>Alias</th><th>Casi</th><th>Progresso</th></tr></thead>
+          <tbody>${S.persons.map(p=>{
+            const pCases = S.cases.filter(c=>c.personId===p.id);
+            const done   = pCases.filter(c=>c.status==='CONFIRMED').length;
+            const pct    = pCases.length ? Math.round(done/pCases.length*100) : 0;
+            const barColor = pct===100?'var(--ok)':pct>50?'var(--pri)':'var(--warn)';
+            return `<tr>
+              <td><strong>${esc(p.label)}</strong></td>
+              <td>${p.emails.map(e=>`<span class="chip chip-muted">${esc(e)}</span>`).join(' ')}</td>
+              <td>${p.phones.map(ph=>`<span class="chip chip-muted">${esc(ph)}</span>`).join(' ')}</td>
+              <td>${(p.addresses||[]).map(a=>`<span class="chip chip-muted">${esc(a.city)}</span>`).join(' ')}</td>
+              <td>${p.aliases.length?p.aliases.map(a=>`<span class="chip chip-muted">${esc(a)}</span>`).join(' '):'<span style="color:var(--faint)">—</span>'}</td>
+              <td><span class="chip chip-pri">${pCases.length}</span></td>
+              <td style="min-width:120px">
+                <div style="display:flex;align-items:center;gap:var(--sp2)">
+                  <div style="flex:1;height:6px;background:var(--off2);border-radius:var(--r-full);overflow:hidden">
+                    <div style="width:${pct}%;height:100%;background:${barColor};transition:width .4s"></div>
+                  </div>
+                  <span style="font-size:var(--text-xs);color:var(--muted);white-space:nowrap">${pct}%</span>
+                </div>
+              </td>
+            </tr>`;
+          }).join('')}
+          </tbody>
+        </table></div>`
+    }
+  </div>`;
+}
+
+function showAddPersonModal() {
+  openModal(`<div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-head">
+      <div class="modal-title" id="modal-title">Nuova persona</div>
+      <button class="modal-close" aria-label="Chiudi">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-warn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:2px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div><strong>Il nome non viene mai usato per le richieste.</strong> È usato solo internamente come etichetta. Per le ricerche si usano email, telefono e indirizzo.</div>
+      </div>
+      <div class="field">
+        <label for="np-label">Etichetta interna</label>
+        <input id="np-label" placeholder="Es. Ricky, Mamma, etc.">
+        <div class="field-hint">Solo per uso interno — non viene inviata ai broker</div>
+      </div>
+      <div class="field">
+        <label for="np-emails">Email (una per riga)</label>
+        <textarea id="np-emails" placeholder="ricky@email.com&#10;ricky.old@gmail.com" style="min-height:70px"></textarea>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="np-phones">Telefono (uno per riga)</label>
+          <textarea id="np-phones" placeholder="+39 333 1111111" style="min-height:70px"></textarea>
+        </div>
+        <div class="field">
+          <label for="np-aliases">Alias / username</label>
+          <textarea id="np-aliases" placeholder="username_vecchio&#10;nome_da_nubile" style="min-height:70px"></textarea>
+        </div>
+      </div>
+      <div class="field">
+        <label for="np-street">Indirizzo (via e numero)</label>
+        <input id="np-street" placeholder="Via Roma 1">
+      </div>
+      <div class="field-row">
+        <div class="field"><label for="np-city">Città</label><input id="np-city" placeholder="Milano"></div>
+        <div class="field"><label for="np-country">Paese</label><input id="np-country" value="IT" placeholder="IT"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Annulla</button>
+      <button class="btn btn-primary" onclick="submitAddPerson()">Salva</button>
+    </div>
+  </div>`);
+}
+
+async function submitAddPerson() {
+  const label   = document.getElementById('np-label').value.trim();
+  const emails  = document.getElementById('np-emails').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  const phones  = document.getElementById('np-phones').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  const aliases = document.getElementById('np-aliases').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  const street  = document.getElementById('np-street').value.trim();
+  const city    = document.getElementById('np-city').value.trim();
+  const country = document.getElementById('np-country').value.trim()||'IT';
+  if(!label){ toast('err','Inserisci un\'etichetta'); return; }
+  if(!emails.length){ toast('err','Almeno un\'email'); return; }
+  const body = { label, emails, phones, aliases, addresses: street?[{street,city,country,current:true}]:[] };
+  if(S.demo){
+    S.persons.push({id:'p'+(Date.now()),label,emails,phones,aliases,addresses:body.addresses});
+  } else {
+    try{ await api('POST','/api/persons',body); await loadAll(); }
+    catch(e){ toast('err','Errore: '+e.message); return; }
+  }
+  closeModal(); toast('ok','Persona aggiunta'); renderPersone();
+}
+
+// ──────────────────────────────────────────────────────────────
+// VIEW: BROKER
+// ──────────────────────────────────────────────────────────────
+function renderBroker() {
+  const main = document.getElementById('main-content');
+  document.getElementById('topbar-actions').innerHTML =
+    `<button class="btn btn-primary" onclick="showAddBrokerModal()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Aggiungi broker
+    </button>`;
+  main.innerHTML = `<div class="fade-in">
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Nome</th><th>Paese</th><th>Base legale</th><th>Contatto</th><th>SLA</th><th>Chiavi discovery</th><th>Note</th></tr></thead>
+      <tbody>${S.brokers.map(b=>`
+        <tr>
+          <td>
+            <strong>${esc(b.name)}</strong>
+            ${b.requiresFullName?`<span class="chip chip-warn" style="margin-left:var(--sp2)" title="Richiede nome in fase di risposta">Nome risposta</span>`:''}
+            ${b.requiresIdProof?`<span class="chip chip-err" style="margin-left:var(--sp1)">Doc. ID</span>`:''}
+          </td>
+          <td><span class="chip chip-muted">${esc(b.country)}</span></td>
+          <td><span class="chip chip-pri">${b.legalBasis.toUpperCase()}</span></td>
+          <td style="font-size:var(--text-xs)">
+            <span class="chip chip-muted">${b.contactMethod}</span>
+            ${b.contactMethod==='email'?`<div style="margin-top:var(--sp1);color:var(--muted)">${esc(b.contactTarget)}</div>`:''}
+          </td>
+          <td>${b.slaInDays}gg</td>
+          <td><div class="key-badges">${(b.acceptedDiscoveryKeys||[]).map(chipKey).join('')}</div></td>
+          <td style="color:var(--muted);font-size:var(--text-xs)">${esc(b.notes||'—')}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table></div>
+  </div>`;
+}
+
+// ──────────────────────────────────────────────────────────────
+// VIEW: CASI
+// ──────────────────────────────────────────────────────────────
+let filterStatus = '', filterPerson = '', filterNext30 = false;
+
+function renderCasi() {
+  const main = document.getElementById('main-content');
+  document.getElementById('topbar-actions').innerHTML =
+    `<button class="btn btn-ghost btn-sm" onclick="exportData('csv')" title="Esporta CSV">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h2m0 0v4m0-4l2 2-2 2"/></svg>
+      CSV
+    </button>
+    <button class="btn btn-ghost btn-sm" onclick="exportData('pdf')" title="Esporta PDF">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      PDF
+    </button>
+    <button class="btn btn-primary" onclick="showOpenCaseModal()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Apri caso
+    </button>`;
+
+  const statusOpts = ['','NOT_STARTED','SENT','AWAITING_RESPONSE','CONFIRMED','NEEDS_RECHECK','FAILED','CLOSED'];
+  const personOpts = ['', ...S.persons.map(p=>p.id)];
+
+  let cases = S.cases;
+  if(filterStatus) cases = cases.filter(c=>c.status===filterStatus);
+  if(filterPerson) cases = cases.filter(c=>c.personId===filterPerson);
+  if(filterNext30) {
+    const now = new Date(); const t30 = new Date(now.getTime()+30*86400000);
+    cases = cases.filter(c=>{ const d=new Date(c.dueAt); return d>=now && d<=t30; });
+  }
+
+  main.innerHTML = `<div class="fade-in">
+    <div class="filters">
+      <select class="filter-select" id="fil-status" onchange="filterStatus=this.value;renderCasi()">
+        ${statusOpts.map(s=>`<option value="${s}" ${s===filterStatus?'selected':''}>${s?STATUS_META[s]?.label||s:'Tutti gli stati'}</option>`).join('')}
+      </select>
+      <select class="filter-select" id="fil-person" onchange="filterPerson=this.value;renderCasi()">
+        ${personOpts.map(id=>`<option value="${id}" ${id===filterPerson?'selected':''}>${id?personById(id).label:'Tutte le persone'}</option>`).join('')}
+      </select>
+      <button class="btn ${filterNext30?'btn-primary':'btn-ghost'} btn-sm" onclick="filterNext30=!filterNext30;renderCasi()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Prossimi 30 gg
+      </button>
+      <span style="color:var(--muted);font-size:var(--text-xs)">${cases.length} casi</span>
+    </div>
+    ${cases.length===0
+      ?`<div class="empty"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><h3>Nessun caso</h3><p>Apri un caso selezionando persona e broker.</p></div>`
+      :`<div class="tbl-wrap"><table>
+          <thead><tr><th>Persona</th><th>Broker</th><th>Stato</th><th>Aperto</th><th>Scadenza</th><th>Chiuso</th><th>Azioni</th></tr></thead>
+          <tbody>${cases.map(c=>{
+            const b = brokerById(c.brokerId);
+            const isOverdue = c.status==='SENT' && new Date(c.dueAt)<new Date();
+            return `<tr>
+              <td>${esc(personById(c.personId).label)}</td>
+              <td><strong>${esc(b.name)}</strong></td>
+              <td>${chipStatus(c.status)}${isOverdue?`<span class="chip chip-err" style="margin-left:var(--sp1)">Scaduto</span>`:''}</td>
+              <td>${fmt(c.openedAt)}</td>
+              <td style="${isOverdue?'color:var(--err);font-weight:700':''}">${fmt(c.dueAt)}</td>
+              <td>${c.closedAt?fmt(c.closedAt):'<span style="color:var(--faint)">—</span>'}</td>
+              <td class="td-actions">
+                ${(c.status==='NOT_STARTED'||c.status==='NEEDS_RECHECK')
+                  ?`<button class="btn btn-ghost btn-sm" onclick="showSendModal('${c.id}')">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                      Invia</button>`:''}
+                ${(c.status==='SENT'||c.status==='AWAITING_RESPONSE')
+                  ?`<button class="btn btn-ghost btn-sm" onclick="confirmCase('${c.id}')">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                      Confermata</button>`:''}
+                ${b.requiresFullName && (c.status==='SENT'||c.status==='AWAITING_RESPONSE'||c.status==='NEEDS_RECHECK')
+                  ?`<button class="btn btn-ghost btn-sm" onclick="showFullNameModal('${c.id}')">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                      Nome</button>`:''}
+                <button class="btn btn-ghost btn-sm" onclick="showEvidenceModal('${c.id}')">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15l3 3 3-3"/></svg>
+                  Prove</button>
+              </td>
+            </tr>`;
+          }).join('')}
+          </tbody>
+        </table></div>`
+    }
+  </div>`;
+}
+
+function showOpenCaseModal() {
+  openModal(`<div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-head">
+      <div class="modal-title" id="modal-title">Apri caso di rimozione</div>
+      <button class="modal-close" aria-label="Chiudi">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label for="oc-person">Persona</label>
+        <select id="oc-person">
+          <option value="">Seleziona…</option>
+          ${S.persons.map(p=>`<option value="${p.id}">${esc(p.label)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <label for="oc-broker">Broker</label>
+        <select id="oc-broker">
+          <option value="">Seleziona…</option>
+          ${S.brokers.map(b=>`<option value="${b.id}">${esc(b.name)} (${b.country})</option>`).join('')}
+        </select>
+      </div>
+      <div id="broker-preview" style="display:none" class="alert alert-warn"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Annulla</button>
+      <button class="btn btn-primary" onclick="submitOpenCase()">Apri</button>
+    </div>
+  </div>`);
+  document.getElementById('oc-broker').addEventListener('change', e => {
+    const b = brokerById(e.target.value);
+    const preview = document.getElementById('broker-preview');
+    if(b && b.id){
+      let notes = [];
+      if(b.requiresFullName) notes.push('Richiede nome completo come risposta — da aggiungere manualmente.');
+      if(b.requiresIdProof)  notes.push('Richiede documento d\'identità — cifra l\'allegato.');
+      preview.style.display = notes.length ? '' : 'none';
+      preview.innerHTML = notes.map(n=>`<p>⚠ ${esc(n)}</p>`).join('');
+    } else { preview.style.display='none'; }
+  });
+}
+
+async function submitOpenCase() {
+  const personId = document.getElementById('oc-person').value;
+  const brokerId = document.getElementById('oc-broker').value;
+  if(!personId||!brokerId){ toast('err','Seleziona persona e broker'); return; }
+  const exists = S.cases.find(c=>c.personId===personId&&c.brokerId===brokerId);
+  if(exists){ toast('err','Caso già aperto per questa combinazione'); return; }
+  if(S.demo){
+    const b = brokerById(brokerId);
+    S.cases.push({id:'c'+(Date.now()),personId,brokerId,status:'NOT_STARTED',openedAt:new Date().toISOString(),dueAt:new Date(Date.now()+b.slaInDays*86400000).toISOString(),closedAt:null,nextCheckAt:null});
+  } else {
+    try{ await api('POST','/api/cases',{personId,brokerId}); await loadAll(); }
+    catch(e){ toast('err','Errore: '+e.message); return; }
+  }
+  closeModal(); toast('ok','Caso aperto'); renderCasi();
+}
+
+// ──────────────────────────────────────────────────────────────
+// SEND MODAL — template preview
+// ──────────────────────────────────────────────────────────────
+function showSendModal(caseId) {
+  const c = S.cases.find(x=>x.id===caseId);
+  if(!c) return;
+  const person = personById(c.personId);
+  const broker = brokerById(c.brokerId);
+  const identLines = [];
+  if((broker.acceptedDiscoveryKeys||[]).includes('email') && person.emails?.length)
+    identLines.push('Email: '+person.emails.join(', '));
+  if((broker.acceptedDiscoveryKeys||[]).includes('phone') && person.phones?.length)
+    identLines.push('Phone: '+person.phones.join(', '));
+  if((broker.acceptedDiscoveryKeys||[]).includes('address') && person.addresses?.length)
+    identLines.push('Address: '+(person.addresses||[]).map(a=>`${a.street}, ${a.city}, ${a.country}`).join(' | '));
+
+  const identBlock = identLines.join('\n');
+  const subject = broker.legalBasis==='gdpr'
+    ? `Right to Erasure Request — GDPR Article 17 — ${broker.name}`
+    : `Data Removal / Opt-Out Request — ${broker.name}`;
+  const body = broker.legalBasis==='gdpr'
+    ? `To the Data Protection Officer / Privacy Team at ${broker.name},\n\nI am exercising my right to erasure under GDPR Article 17 (EU) 2016/679.\n\nI request immediate and permanent deletion of all personal data you hold about me.\n\nIdentifying information:\n\n${identBlock}\n\n${broker.requiresFullName?'[Nome richiesto — aggiungere manualmente prima di inviare]\n\n':''}Please confirm receipt within 72 hours and complete erasure within 30 calendar days.\n\nYours faithfully,\n[Data Subject]`
+    : `To the Privacy Team at ${broker.name},\n\nI request removal of all data associated with:\n\n${identBlock}\n\nPlease confirm within 30 days.\n\nThank you.`;
+
+  const channel = broker.contactMethod==='email'
+    ? `Email a: <strong>${esc(broker.contactTarget)}</strong>`
+    : `Modulo manuale: <a href="${esc(broker.contactTarget)}" target="_blank" rel="noopener">${esc(broker.contactTarget)}</a>`;
+
+  const formChecklist = broker.contactMethod==='form' ? `
+    <div class="alert alert-info" style="flex-direction:column;gap:var(--sp3)">
+      <strong style="display:flex;align-items:center;gap:var(--sp2)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Checklist compilazione manuale
+      </strong>
+      <label style="display:flex;align-items:flex-start;gap:var(--sp3);cursor:pointer">
+        <input type="checkbox" style="width:auto;margin-top:3px" id="chk-open">
+        <span>1. <a href="${esc(broker.contactTarget)}" target="_blank" rel="noopener">Apri il form del broker</a></span>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:var(--sp3);cursor:pointer">
+        <input type="checkbox" style="width:auto;margin-top:3px" id="chk-fill">
+        <span>2. Copia e incolla l'identityBlock sotto nel form</span>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:var(--sp3);cursor:pointer">
+        <input type="checkbox" style="width:auto;margin-top:3px" id="chk-send">
+        <span>3. Invia il form e ottieni la conferma di ricezione</span>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:var(--sp3);cursor:pointer">
+        <input type="checkbox" style="width:auto;margin-top:3px" id="chk-screenshot">
+        <span>4. Fai uno screenshot e caricalo come prova (tab "Prove")</span>
+      </label>
+    </div>` : '';
+
+  openModal(`<div class="modal" style="max-width:600px" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-head">
+      <div class="modal-title" id="modal-title">Preview richiesta — ${esc(broker.name)}</div>
+      <button class="modal-close" aria-label="Chiudi">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      ${broker.requiresFullName?`<div class="alert alert-warn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:2px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div><strong>Questo broker richiede il nome</strong> in fase di risposta. Non è incluso nella richiesta iniziale. Aggiungilo solo se richiede esplicitamente.</div>
+      </div>`:''}
+      ${formChecklist}
+      <div class="field">
+        <label>Canale di invio</label>
+        <div style="font-size:var(--text-sm);padding:var(--sp3) 0">${channel}</div>
+      </div>
+      <div class="field">
+        <label>Oggetto</label>
+        <div class="codebox" style="padding:var(--sp3)">${esc(subject)}</div>
+      </div>
+      <div class="field">
+        <label>Corpo del messaggio</label>
+        <div class="codebox">${esc(body)}</div>
+      </div>
+      <div class="field">
+        <label>Chiavi discovery incluse</label>
+        <div class="key-badges">${identLines.map(_=>_).map(l=>{
+          const k=l.startsWith('Email')?'email':l.startsWith('Phone')?'phone':'address';
+          return chipKey(k);
+        }).join('')}
+        ${!identLines.length?'<span style="color:var(--err)">Nessuna chiave disponibile per questo broker</span>':''}
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Annulla</button>
+      <button class="btn btn-primary" onclick="doSend('${caseId}')" ${!identLines.length?'disabled':''}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        ${broker.contactMethod==='email'?'Invia email':'Segna come inviata (manuale)'}
+      </button>
+    </div>
+  </div>`);
+}
+
+async function doSend(caseId) {
+  if(S.demo){
+    const c = S.cases.find(x=>x.id===caseId);
+    if(c) c.status='SENT';
+    closeModal(); toast('ok','Richiesta segnata come inviata'); renderCasi(); return;
+  }
+  try{
+    await api('POST',`/api/cases/${caseId}/send`);
+    await loadAll();
+    closeModal(); toast('ok','Richiesta inviata'); renderCasi();
+  } catch(e){ toast('err','Errore: '+e.message); }
+}
+
+async function confirmCase(caseId) {
+  if(S.demo){
+    const c = S.cases.find(x=>x.id===caseId);
+    if(c){ c.status='CONFIRMED'; c.closedAt=new Date().toISOString(); }
+    toast('ok','Caso confermato come rimosso'); renderCasi(); renderDashboard(); return;
+  }
+  try{
+    await api('PATCH',`/api/cases/${caseId}/confirm`);
+    await loadAll(); toast('ok','Caso confermato'); renderCasi();
+  } catch(e){ toast('err','Errore: '+e.message); }
+}
+
+// ──────────────────────────────────────────────────────────────
+// VIEW: VERIFICHE
+// ──────────────────────────────────────────────────────────────
+function renderVerifiche() {
+  const main = document.getElementById('main-content');
+  document.getElementById('topbar-actions').innerHTML = `
+    <button class="btn btn-ghost btn-sm" onclick="triggerImapPoll()" title="Forza polling IMAP ora">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+      Polling IMAP
+    </button>
+  `;
+
+  const tasks = S.demo ? [] : S.tasks;
+
+  main.innerHTML = `<div class="fade-in">
+    ${tasks.length===0
+      ?`<div class="empty">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          <h3>Nessuna verifica in sospeso</h3>
+          <p>Le verifiche di re-controllo appaiono 90 giorni dopo una rimozione confermata.</p>
+        </div>`
+      :`<div class="tbl-wrap"><table>
+          <thead><tr><th>Persona</th><th>Broker</th><th>Pianificata</th><th>Risultato</th><th>Azioni</th></tr></thead>
+          <tbody>${tasks.map(t=>`
+            <tr>
+              <td>${esc(t.case?.person?.label||'?')}</td>
+              <td><strong>${esc(t.case?.broker?.name||'?')}</strong></td>
+              <td>${fmt(t.scheduledFor)}</td>
+              <td>${t.result
+                ? `<span class="chip ${t.result==='removed'?'chip-ok':t.result==='still_present'?'chip-err':'chip-warn'}">${t.result==='removed'?'Rimosso':t.result==='still_present'?'Ancora presente':'Errore'}</span>`
+                : `<span style="color:var(--faint)">In sospeso</span>`}</td>
+              <td class="td-actions">
+                ${!t.executedAt
+                  ?`<button class="btn btn-ghost btn-sm" onclick="showTaskResultModal('${t.id}','${t.caseId}')">Segna risultato</button>`
+                  :''}
+              </td>
+            </tr>`).join('')}
+          </tbody>
+        </table></div>`
+    }
+  </div>`;
+}
+
+function showTaskResultModal(taskId, caseId) {
+  openModal(`<div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-head">
+      <div class="modal-title" id="modal-title">Risultato verifica</div>
+      <button class="modal-close" aria-label="Chiudi">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label for="task-result">Risultato del controllo</label>
+        <select id="task-result">
+          <option value="removed">Rimosso — il dato non è più presente</option>
+          <option value="still_present">Ancora presente — richiesta da rinviare</option>
+          <option value="error">Errore — impossibile verificare</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="task-notes">Note (opzionale)</label>
+        <textarea id="task-notes" placeholder="Es. screenshot verificato il..."></textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Annulla</button>
+      <button class="btn btn-primary" onclick="submitTaskResult('${taskId}','${caseId}')">Salva</button>
+    </div>
+  </div>`);
+}
+
+async function submitTaskResult(taskId, caseId) {
+  const result = document.getElementById('task-result').value;
+  const notes  = document.getElementById('task-notes').value.trim();
+  try{
+    await api('PATCH', `/api/cases/${caseId}/tasks/${taskId}`, { result, notes: notes||undefined });
+    await loadAll();
+    closeModal(); toast('ok','Verifica registrata'); renderVerifiche();
+  } catch(e){ toast('err','Errore: '+e.message); }
+}
+
+async function triggerImapPoll() {
+  if (S.demo) { toast('warn','Modalità demo — IMAP non disponibile'); return; }
+  try {
+    const btn = document.querySelector('[onclick="triggerImapPoll()"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Polling…'; }
+    const res = await api('POST', '/api/imap/poll');
+    toast('ok', `Polling completato alle ${new Date(res.polledAt).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})}`);
+    await loadAll();
+    renderVerifiche();
+  } catch(e) {
+    toast('err', 'Errore IMAP: ' + e.message);
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
+// EVIDENCE MODAL
+// ──────────────────────────────────────────────────────────────
+async function showEvidenceModal(caseId) {
+  const c = S.cases.find(x=>x.id===caseId);
+  if(!c) return;
+  const broker = brokerById(c.brokerId);
+  const person = personById(c.personId);
+
+  let evidenceList = [];
+  if(!S.demo){
+    try{ evidenceList = await api('GET', `/api/evidence/cases/${caseId}`) || []; }
+    catch(e){ toast('err','Errore caricamento prove: '+e.message); return; }
+  }
+
+  const EV_LABELS = { sent_email:'Email inviata', broker_response:'Risposta broker', screenshot:'Screenshot', id_doc:'Documento ID' };
+
+  openModal(`<div class="modal" style="max-width:600px" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-head">
+      <div class="modal-title" id="modal-title">Prove — ${esc(person.label)} / ${esc(broker.name)}</div>
+      <button class="modal-close" aria-label="Chiudi">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      ${evidenceList.length===0
+        ?`<div class="empty" style="padding:var(--sp6) 0"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><p>Nessun allegato. Carica il primo.</p></div>`
+        :`<div class="tbl-wrap" style="max-height:240px;overflow-y:auto"><table>
+          <thead><tr><th>Tipo</th><th>File</th><th>Data</th><th></th></tr></thead>
+          <tbody>${evidenceList.map(ev=>`<tr>
+            <td><span class="chip chip-muted">${EV_LABELS[ev.type]||ev.type}</span></td>
+            <td style="font-size:var(--text-xs);color:var(--muted)">${esc(ev.filePath)}</td>
+            <td>${fmt(ev.createdAt)}</td>
+            <td class="td-actions">
+              <a class="btn btn-ghost btn-sm" href="${S.apiUrl}/api/evidence/${ev.id}/download" target="_blank">Scarica</a>
+              <button class="btn btn-ghost btn-sm" onclick="deleteEvidence('${ev.id}','${caseId}')">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+              </button>
+            </td>
+          </tr>`).join('')}
+          </tbody>
+        </table></div>`
+      }
+      <div class="field" style="margin-top:var(--sp4)">
+        <label>Aggiungi allegato</label>
+        <div style="display:flex;gap:var(--sp3);align-items:center">
+          <select id="ev-type" style="width:auto;flex-shrink:0">
+            <option value="screenshot">Screenshot</option>
+            <option value="broker_response">Risposta broker</option>
+            <option value="sent_email">Email inviata</option>
+            <option value="id_doc">Documento ID</option>
+          </select>
+          <input type="file" id="ev-file" style="flex:1" accept=".pdf,.png,.jpg,.jpeg,.eml,.txt">
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Chiudi</button>
+      <button class="btn btn-primary" onclick="uploadEvidence('${caseId}')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Carica
+      </button>
+    </div>
+  </div>`);
+}
+
+async function uploadEvidence(caseId) {
+  if(S.demo){ toast('err','Upload non disponibile in modalità demo'); return; }
+  const fileInput = document.getElementById('ev-file');
+  const type      = document.getElementById('ev-type').value;
+  if(!fileInput.files?.length){ toast('err','Seleziona un file'); return; }
+  const fd = new FormData();
+  fd.append('file', fileInput.files[0]);
+  fd.append('type', type);
+  try{
+    const res = await fetch(`${S.apiUrl}/api/evidence/cases/${caseId}`, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer '+S.token },
+      body: fd,
+    });
+    if(!res.ok) throw new Error(await res.text());
+    toast('ok','Allegato caricato');
+    closeModal();
+    showEvidenceModal(caseId);
+  } catch(e){ toast('err','Errore upload: '+e.message); }
+}
+
+async function deleteEvidence(evidenceId, caseId) {
+  if(!confirm('Eliminare questo allegato?')) return;
+  try{
+    await api('DELETE', `/api/evidence/${evidenceId}`);
+    toast('ok','Allegato eliminato');
+    closeModal();
+    showEvidenceModal(caseId);
+  } catch(e){ toast('err','Errore: '+e.message); }
+}
+
+// ──────────────────────────────────────────────────────────────
+// FULL NAME RESPONSE MODAL
+// ──────────────────────────────────────────────────────────────
+async function showFullNameModal(caseId) {
+  const c = S.cases.find(x=>x.id===caseId);
+  if(!c) return;
+  const broker = brokerById(c.brokerId);
+  const person = personById(c.personId);
+
+  let fullName = null;
+  if(!S.demo){
+    try{
+      const data = await api('GET', `/api/persons/${c.personId}/response-identity`);
+      fullName = data?.fullName || null;
+    } catch(e){ toast('err','Errore: '+e.message); return; }
+  }
+
+  const identLines = [];
+  if((broker.acceptedDiscoveryKeys||[]).includes('email') && person.emails?.length)
+    identLines.push('Email: '+person.emails.join(', '));
+  if((broker.acceptedDiscoveryKeys||[]).includes('phone') && person.phones?.length)
+    identLines.push('Phone: '+person.phones.join(', '));
+  if((broker.acceptedDiscoveryKeys||[]).includes('address') && person.addresses?.length)
+    identLines.push('Address: '+(person.addresses||[]).map(a=>`${a.street}, ${a.city}, ${a.country}`).join(' | '));
+
+  const responseText = `To the Privacy Team at ${broker.name},
+
+Thank you for your message regarding my data removal request.
+
+As requested, here is my full name for verification:
+
+Full Name: ${fullName || '[COMPILARE: fullName non ancora inserito]'}
+
+${identLines.join('\n')}
+
+Please proceed with the removal and confirm completion.
+
+Yours faithfully,
+[Data Subject]`;
+
+  openModal(`<div class="modal" style="max-width:580px" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-head">
+      <div class="modal-title" id="modal-title">Risposta con nome — ${esc(broker.name)}</div>
+      <button class="modal-close" aria-label="Chiudi">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-err">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:2px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+        <div><strong>Attenzione:</strong> Condividi il nome <em>solo se</em> il broker lo ha richiesto esplicitamente
+        nella loro risposta. L'accesso è registrato nel log.</div>
+      </div>
+      ${!fullName
+        ?`<div class="alert alert-warn">fullName non ancora impostato per ${esc(person.label)}.
+          Compilarlo nel DB prima di procedere.</div>`
+        :''}
+      <div class="field">
+        <label>Testo di risposta da inviare</label>
+        <div class="codebox" style="white-space:pre-wrap;font-size:var(--text-xs)">${esc(responseText)}</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Chiudi</button>
+      <button class="btn btn-primary" onclick="navigator.clipboard.writeText(${JSON.stringify(responseText)}).then(()=>toast('ok','Testo copiato!'))">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copia testo
+      </button>
+    </div>
+  </div>`);
+}
+
+// ──────────────────────────────────────────────────────────────
+// ADD BROKER MODAL
+// ──────────────────────────────────────────────────────────────
+function showAddBrokerModal() {
+  openModal(`<div class="modal" style="max-width:580px" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-head">
+      <div class="modal-title" id="modal-title">Nuovo broker</div>
+      <button class="modal-close" aria-label="Chiudi">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="field-row">
+        <div class="field"><label for="nb-name">Nome</label><input id="nb-name" placeholder="es. Spokeo"></div>
+        <div class="field"><label for="nb-country">Paese (2 lettere)</label><input id="nb-country" placeholder="US" maxlength="2" style="text-transform:uppercase"></div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="nb-legal">Base legale</label>
+          <select id="nb-legal">
+            <option value="gdpr">GDPR</option>
+            <option value="ccpa">CCPA</option>
+            <option value="opt_out">Opt-out generico</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="nb-method">Metodo contatto</label>
+          <select id="nb-method">
+            <option value="email">Email</option>
+            <option value="form">Form web</option>
+            <option value="api">API</option>
+          </select>
+        </div>
+      </div>
+      <div class="field"><label for="nb-target">Email / URL form</label><input id="nb-target" placeholder="optout@broker.com o https://..."></div>
+      <div class="field"><label for="nb-portal">URL portale (opzionale)</label><input id="nb-portal" placeholder="https://broker.com/optout"></div>
+      <div class="field-row">
+        <div class="field"><label for="nb-sla">SLA (giorni)</label><input id="nb-sla" type="number" value="30" min="1"></div>
+        <div class="field" style="justify-content:flex-end;padding-top:var(--sp6)">
+          <label style="display:flex;align-items:center;gap:var(--sp3);cursor:pointer">
+            <input type="checkbox" id="nb-fullname" style="width:auto">
+            <span>Richiede nome in risposta</span>
+          </label>
+        </div>
+      </div>
+      <div class="field">
+        <label>Chiavi discovery accettate</label>
+        <div style="display:flex;gap:var(--sp4);margin-top:var(--sp2)">
+          <label style="display:flex;align-items:center;gap:var(--sp2);cursor:pointer"><input type="checkbox" id="nb-dk-email" checked style="width:auto"> Email</label>
+          <label style="display:flex;align-items:center;gap:var(--sp2);cursor:pointer"><input type="checkbox" id="nb-dk-phone" style="width:auto"> Telefono</label>
+          <label style="display:flex;align-items:center;gap:var(--sp2);cursor:pointer"><input type="checkbox" id="nb-dk-address" style="width:auto"> Indirizzo</label>
+        </div>
+      </div>
+      <div class="field"><label for="nb-notes">Note (opzionale)</label><textarea id="nb-notes" style="min-height:60px"></textarea></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Annulla</button>
+      <button class="btn btn-primary" onclick="submitAddBroker()">Salva broker</button>
+    </div>
+  </div>`);
+}
+
+async function submitAddBroker() {
+  const name    = document.getElementById('nb-name').value.trim();
+  const country = document.getElementById('nb-country').value.trim().toUpperCase();
+  const legal   = document.getElementById('nb-legal').value;
+  const method  = document.getElementById('nb-method').value;
+  const target  = document.getElementById('nb-target').value.trim();
+  const portal  = document.getElementById('nb-portal').value.trim();
+  const sla     = parseInt(document.getElementById('nb-sla').value) || 30;
+  const fullName= document.getElementById('nb-fullname').checked;
+  const notes   = document.getElementById('nb-notes').value.trim();
+  const keys    = [];
+  if(document.getElementById('nb-dk-email').checked)   keys.push('email');
+  if(document.getElementById('nb-dk-phone').checked)   keys.push('phone');
+  if(document.getElementById('nb-dk-address').checked) keys.push('address');
+
+  if(!name||!country||!target){ toast('err','Compila nome, paese e target'); return; }
+  if(!keys.length){ toast('err','Seleziona almeno una chiave di discovery'); return; }
+
+  const body = {
+    name, country, legalBasis: legal, contactMethod: method,
+    contactTarget: target, slaInDays: sla, requiresFullName: fullName,
+    requiresIdProof: false, acceptedDiscoveryKeys: keys,
+    ...(portal ? { portalUrl: portal } : {}),
+    ...(notes  ? { notes } : {}),
+  };
+
+  if(S.demo){
+    S.brokers.push({ id: 'b'+(Date.now()), ...body, active: true });
+  } else {
+    try{
+      const b = await api('POST', '/api/brokers', body);
+      S.brokers.push(b);
+    } catch(e){ toast('err','Errore: '+e.message); return; }
+  }
+  closeModal(); toast('ok', 'Broker aggiunto'); renderBroker();
+}
+
+// ──────────────────────────────────────────────────────────────
+// EXPORT
+// ──────────────────────────────────────────────────────────────
+function exportData(format) {
+  if(S.demo){ toast('err','Export non disponibile in modalità demo'); return; }
+  const personParam = filterPerson ? `?personId=${encodeURIComponent(filterPerson)}` : '';
+  const url = `${S.apiUrl}/api/export/${format}${personParam}`;
+  // Open in a new tab — browser will trigger download via Content-Disposition
+  const a = document.createElement('a');
+  a.href = url;
+  a.target = '_blank';
+  // Pass token as query param for file downloads (Authorization header not usable with <a>)
+  // Note: acceptable for private LAN use; never expose publicly
+  a.href = `${S.apiUrl}/api/export/${format}${personParam}${personParam?'&':'?'}token=${encodeURIComponent(S.token)}`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+// ──────────────────────────────────────────────────────────────
+// AUTH
+// ──────────────────────────────────────────────────────────────
+function showLogin(){ document.getElementById('view-login').classList.remove('hidden'); document.getElementById('view-shell').classList.add('hidden'); }
+function showShell(){ document.getElementById('view-login').classList.add('hidden'); document.getElementById('view-shell').classList.remove('hidden'); }
+
+document.getElementById('btn-login').addEventListener('click', async () => {
+  const url   = document.getElementById('inp-api').value.trim().replace(/\/$/,'');
+  const token = document.getElementById('inp-token').value.trim();
+  if(!url||!token){ toast('err','Inserisci URL e token'); return; }
+  S.apiUrl = url; S.token = token; S.demo = false;
+  try{
+    await loadAll();
+    document.getElementById('conn-url').textContent = url.replace('http://','').replace('https://','');
+    document.getElementById('conn-label').textContent = 'Connesso (API)';
+    showShell(); navigate('dashboard');
+  } catch(e){ toast('err','Connessione fallita: '+e.message); }
+});
+
+document.getElementById('btn-demo').addEventListener('click', async () => {
+  S.demo = true;
+  document.getElementById('conn-url').textContent = 'modalità demo';
+  document.getElementById('conn-label').textContent = 'Offline (demo)';
+  await loadAll();
+  showShell(); navigate('dashboard');
+});
+
+document.getElementById('btn-logout').addEventListener('click', () => {
+  S.token=''; S.apiUrl=''; S.demo=false;
+  S.persons=[]; S.brokers=[]; S.cases=[];
+  showLogin();
+});
+
+// Sidebar nav
+document.getElementById('sidebar-nav').addEventListener('click', e => {
+  const btn = e.target.closest('[data-route]');
+  if(btn){ location.hash = '#'+btn.dataset.route; }
+});
+
+// Theme toggle
+const root = document.documentElement;
+let theme = 'dark'; root.setAttribute('data-theme','dark');
+document.getElementById('theme-toggle').addEventListener('click', () => {
+  theme = theme==='dark'?'light':'dark';
+  root.setAttribute('data-theme',theme);
+  document.getElementById('theme-toggle').innerHTML = theme==='dark'
+    ?'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>'
+    :'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>';
+});
+
+// Init
+showLogin();
+window.dispatchEvent(new Event('hashchange'));
+</script>
+</body>
+</html>
