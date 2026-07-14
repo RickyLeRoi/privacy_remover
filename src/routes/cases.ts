@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { addDays } from "date-fns";
 import { CaseStatus, VerificationResult } from "../lib/enums";
+import { nextId, nextIds } from "../lib/ids";
 import { prisma } from "../lib/prisma";
 import { packList } from "../lib/serialize";
 import { generateMessage } from "../services/templateService";
@@ -22,6 +23,7 @@ casesRouter.post("/", async (req, res) => {
 
   const c = await prisma.removalCase.create({
     data: {
+      id: await nextId("case"),
       personId,
       brokerId,
       status: CaseStatus.NOT_STARTED,
@@ -29,6 +31,62 @@ casesRouter.post("/", async (req, res) => {
     },
   });
   res.status(201).json(c);
+});
+
+// 20260701 RG - Apre in un colpo solo una pratica per ogni broker attivo su cui la
+// persona non ne ha già una. NON invia nulla: le pratiche restano NOT_STARTED e
+// l'invio resta una scelta esplicita. Con ~1900 broker, inviare in automatico
+// significherebbe centinaia di email dalla stessa casella e il blocco dell'SMTP.
+const BulkSchema = z.object({
+  personId: z.string(),
+  contactMethod: z.enum(["email", "form", "api"]).optional(),
+  country: z.string().optional(),
+});
+
+casesRouter.post("/bulk", async (req, res) => {
+  const parsed = BulkSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json(parsed.error);
+  const { personId, contactMethod, country } = parsed.data;
+
+  const person = await prisma.person.findUnique({ where: { id: personId } });
+  if (!person) return res.status(404).json({ error: "Person not found" });
+
+  const brokers = await prisma.broker.findMany({
+    where: {
+      active: true,
+      ...(contactMethod ? { contactMethod } : {}),
+      ...(country ? { country } : {}),
+    },
+    select: { id: true, slaInDays: true },
+  });
+
+  const already = new Set(
+    (await prisma.removalCase.findMany({ where: { personId }, select: { brokerId: true } }))
+      .map((c) => c.brokerId)
+  );
+
+  const toOpen = brokers.filter((b) => !already.has(b.id));
+  const now = new Date();
+  const ids = await nextIds("case", toOpen.length);
+
+  const CHUNK = 200;
+  for (let i = 0; i < toOpen.length; i += CHUNK) {
+    await prisma.removalCase.createMany({
+      data: toOpen.slice(i, i + CHUNK).map((b, j) => ({
+        id: ids[i + j],
+        personId,
+        brokerId: b.id,
+        status: CaseStatus.NOT_STARTED,
+        dueAt: addDays(now, b.slaInDays),
+      })),
+    });
+  }
+
+  res.status(201).json({
+    created: toOpen.length,
+    skipped: brokers.length - toOpen.length,
+    total: brokers.length,
+  });
 });
 
 casesRouter.get("/", async (req, res) => {
@@ -71,6 +129,7 @@ casesRouter.post("/:id/send", async (req, res) => {
 
   const msg = await prisma.outboundMessage.create({
     data: {
+      id: await nextId("message"),
       caseId: c.id,
       channel: c.broker.contactMethod === "email" ? "email" : "form_manual",
       templateKey: `${c.broker.legalBasis}_erasure_v1`,

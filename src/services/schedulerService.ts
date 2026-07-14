@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import { addDays } from "date-fns";
 import { CaseStatus } from "../lib/enums";
+import { nextId } from "../lib/ids";
 import { prisma } from "../lib/prisma";
 import { pollInbox } from "./imapService";
 import { log, logErr } from "../index";
@@ -38,7 +39,7 @@ export async function initScheduler() {
       });
       for (const c of confirmed) {
         await prisma.verificationTask.create({
-          data: { caseId: c.id, scheduledFor: new Date() },
+          data: { id: await nextId("task"), caseId: c.id, scheduledFor: new Date() },
         });
         await prisma.removalCase.update({
           where: { id: c.id },

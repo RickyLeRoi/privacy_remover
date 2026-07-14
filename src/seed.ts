@@ -1,305 +1,81 @@
-import { LegalBasis, ContactMethod, DiscoveryKey } from "./lib/enums";
+import { nextIds } from "./lib/ids";
 import { prisma } from "./lib/prisma";
 import { packList } from "./lib/serialize";
+import { getSetting, setSetting } from "./lib/settings";
+import brokerCatalog from "./data/brokers.json";
 
-const brokers = [
-  {
-    name: "Spokeo",
-    country: "US",
-    legalBasis: LegalBasis.gdpr,
-    contactMethod: ContactMethod.form,
-    contactTarget: "https://www.spokeo.com/optout",
-    portalUrl: "https://www.spokeo.com/optout",
-    slaInDays: 10,
-    requiresFullName: false,
-    requiresIdProof: false,
-    acceptedDiscoveryKeys: [DiscoveryKey.email, DiscoveryKey.phone],
-  },
-  {
-    name: "BeenVerified",
-    country: "US",
-    legalBasis: LegalBasis.gdpr,
-    contactMethod: ContactMethod.email,
-    contactTarget: "optout@beenverified.com",
-    portalUrl: "https://www.beenverified.com/app/optout/search",
-    slaInDays: 30,
-    requiresFullName: false,
-    requiresIdProof: false,
-    acceptedDiscoveryKeys: [DiscoveryKey.email],
-  },
-  {
-    name: "Whitepages",
-    country: "US",
-    legalBasis: LegalBasis.gdpr,
-    contactMethod: ContactMethod.form,
-    contactTarget: "https://www.whitepages.com/suppression-requests",
-    portalUrl: "https://www.whitepages.com/suppression-requests",
-    slaInDays: 14,
-    requiresFullName: false,
-    requiresIdProof: false,
-    acceptedDiscoveryKeys: [DiscoveryKey.email, DiscoveryKey.phone, DiscoveryKey.address],
-  },
-  {
-    name: "Radaris",
-    country: "US",
-    legalBasis: LegalBasis.gdpr,
-    contactMethod: ContactMethod.form,
-    contactTarget: "https://radaris.com/page/how-to-remove",
-    portalUrl: "https://radaris.com/page/how-to-remove",
-    slaInDays: 30,
-    requiresFullName: true,
-    requiresIdProof: false,
-    acceptedDiscoveryKeys: [DiscoveryKey.email, DiscoveryKey.address],
-    notes: "Richiede conferma nome in fase di risposta.",
-  },
-  {
-    name: "Intelius",
-    country: "US",
-    legalBasis: LegalBasis.gdpr,
-    contactMethod: ContactMethod.form,
-    contactTarget: "https://www.intelius.com/opt-out",
-    portalUrl: "https://www.intelius.com/opt-out",
-    slaInDays: 30,
-    requiresFullName: false,
-    requiresIdProof: false,
-    acceptedDiscoveryKeys: [DiscoveryKey.email, DiscoveryKey.phone],
-  },
-  {
-    name: "PeekYou",
-    country: "US",
-    legalBasis: LegalBasis.gdpr,
-    contactMethod: ContactMethod.form,
-    contactTarget: "https://www.peekyou.com/about/contact/optout/",
-    portalUrl: "https://www.peekyou.com/about/contact/optout/",
-    slaInDays: 30,
-    requiresFullName: false,
-    requiresIdProof: false,
-    acceptedDiscoveryKeys: [DiscoveryKey.email],
-  },
-  {
-    name: "Pipl",
-    country: "US",
-    legalBasis: LegalBasis.gdpr,
-    contactMethod: ContactMethod.email,
-    contactTarget: "privacy@pipl.com",
-    portalUrl: "https://pipl.com/personal-information-removal-request",
-    slaInDays: 30,
-    requiresFullName: false,
-    requiresIdProof: false,
-    acceptedDiscoveryKeys: [DiscoveryKey.email],
-  },
-  {
-    name: "Truecaller",
-    country: "SE",
-    legalBasis: LegalBasis.gdpr,
-    contactMethod: ContactMethod.form,
-    contactTarget: "https://www.truecaller.com/unlisting",
-    portalUrl: "https://www.truecaller.com/unlisting",
-    slaInDays: 7,
-    requiresFullName: false,
-    requiresIdProof: false,
-    acceptedDiscoveryKeys: [DiscoveryKey.phone],
-    notes: "Registrato in Svezia, soggetto direttamente a GDPR.",
-  },
-  {
-    name: "PimEyes",
-    country: "PL",
-    legalBasis: LegalBasis.gdpr,
-    contactMethod: ContactMethod.email,
-    contactTarget: "opt-out@pimeyes.com",
-    portalUrl: "https://pimeyes.com/en/opt-out",
-    slaInDays: 30,
-    requiresFullName: false,
-    requiresIdProof: false,
-    acceptedDiscoveryKeys: [DiscoveryKey.email],
-    notes: "Motore di ricerca facciale. Alta priorità.",
-  },
-  {
-    name: "Acxiom",
-    country: "US",
-    legalBasis: LegalBasis.gdpr,
-    contactMethod: ContactMethod.form,
-    contactTarget: "https://www.acxiom.com/about-acxiom/privacy/gdpr/",
-    portalUrl: "https://isapps.acxiom.com/optout/optout.aspx",
-    slaInDays: 30,
-    requiresFullName: false,
-    requiresIdProof: false,
-    acceptedDiscoveryKeys: [DiscoveryKey.email, DiscoveryKey.address],
-  },
-  {
-    name: "LexisNexis",
-    country: "US",
-    legalBasis: LegalBasis.gdpr,
-    contactMethod: ContactMethod.form,
-    contactTarget: "https://optout.lexisnexis.com",
-    portalUrl: "https://optout.lexisnexis.com",
-    slaInDays: 30,
-    requiresFullName: false,
-    requiresIdProof: true,
-    acceptedDiscoveryKeys: [DiscoveryKey.email, DiscoveryKey.address],
-    notes: "Richiede documento d'identità. Gestire con cifratura.",
-  },
-  {
-    name: "FastPeopleSearch",
-    country: "US",
-    legalBasis: LegalBasis.opt_out,
-    contactMethod: ContactMethod.form,
-    contactTarget: "https://www.fastpeoplesearch.com/removal",
-    portalUrl: "https://www.fastpeoplesearch.com/removal",
-    slaInDays: 14,
-    requiresFullName: false,
-    requiresIdProof: false,
-    acceptedDiscoveryKeys: [DiscoveryKey.email, DiscoveryKey.phone, DiscoveryKey.address],
-  },
-  {
-    name: "TruthFinder",
-    country: "US",
-    legalBasis: LegalBasis.opt_out,
-    contactMethod: ContactMethod.form,
-    contactTarget: "https://www.truthfinder.com/opt-out/",
-    portalUrl: "https://www.truthfinder.com/opt-out/",
-    slaInDays: 30,
-    requiresFullName: false,
-    requiresIdProof: false,
-    acceptedDiscoveryKeys: [DiscoveryKey.email, DiscoveryKey.phone],
-  },
-  {
-    name: "MyLife",
-    country: "US",
-    legalBasis: LegalBasis.ccpa,
-    contactMethod: ContactMethod.form,
-    contactTarget: "https://www.mylife.com/ccpa/index.pubview",
-    portalUrl: "https://www.mylife.com/ccpa/index.pubview",
-    slaInDays: 45,
-    requiresFullName: false,
-    requiresIdProof: false,
-    acceptedDiscoveryKeys: [DiscoveryKey.email],
-    notes: "Lento. Priorità media.",
-  },
-  {
-    name: "PeopleFinder",
-    country: "US",
-    legalBasis: LegalBasis.opt_out,
-    contactMethod: ContactMethod.form,
-    contactTarget: "https://www.peoplefinder.com/optout.php",
-    portalUrl: "https://www.peoplefinder.com/optout.php",
-    slaInDays: 10,
-    requiresFullName: false,
-    requiresIdProof: false,
-    acceptedDiscoveryKeys: [DiscoveryKey.email, DiscoveryKey.phone, DiscoveryKey.address],
-  },
-  {
-    name: "CheckPeople",
-    country: "US",
-    legalBasis: LegalBasis.opt_out,
-    contactMethod: ContactMethod.form,
-    contactTarget: "https://www.checkpeople.com/opt-out",
-    portalUrl: "https://www.checkpeople.com/opt-out",
-    slaInDays: 14,
-    requiresFullName: false,
-    requiresIdProof: false,
-    acceptedDiscoveryKeys: [DiscoveryKey.email, DiscoveryKey.phone],
-  },
-  {
-    name: "MyHeritage",
-    country: "IL",
-    legalBasis: LegalBasis.gdpr,
-    contactMethod: ContactMethod.email,
-    contactTarget: "privacy@myheritage.com",
-    portalUrl: "https://www.myheritage.com/gdpr",
-    slaInDays: 30,
-    requiresFullName: false,
-    requiresIdProof: false,
-    acceptedDiscoveryKeys: [DiscoveryKey.email],
-    notes: "Genealogy platform. Richiesta GDPR Art.17.",
-  },
-  {
-    name: "Epsilon (Conversant)",
-    country: "US",
-    legalBasis: LegalBasis.opt_out,
-    contactMethod: ContactMethod.form,
-    contactTarget: "https://privacyportal.onetrust.com/webform/65571c3e-d7ed-4ce5-b3ed-4bdb1e59d1cc/e2c8d46f-e7fa-40dc-936c-c9a5db0c8a21",
-    portalUrl: "https://www.epsilon.com/us/privacy-policy",
-    slaInDays: 30,
-    requiresFullName: false,
-    requiresIdProof: false,
-    acceptedDiscoveryKeys: [DiscoveryKey.email, DiscoveryKey.address],
-    notes: "Marketing data aggregator. Opt-out via OneTrust portal.",
-  },
-  // 20260701 RG - I registri italiani usano il nome come chiave, quindi hanno
-  // requiresFullName: true. Vanno gestiti a mano (form + PEC + documento): il
-  // flusso automatico via email non li copre.
-  {
-    name: "PagineBianche (SEAT PG)",
-    country: "IT",
-    legalBasis: LegalBasis.gdpr,
-    contactMethod: ContactMethod.form,
-    contactTarget: "https://www.paginebianche.it/opt-out",
-    portalUrl: "https://www.paginebianche.it/opt-out",
-    slaInDays: 30,
-    requiresFullName: true,
-    requiresIdProof: true,
-    acceptedDiscoveryKeys: [DiscoveryKey.phone, DiscoveryKey.address],
-    notes: "Registro italiano. Flusso separato: form ufficiale + copia documento. Risposta entro 30gg per GDPR.",
-  },
-  {
-    name: "PagineGialle (SEAT PG)",
-    country: "IT",
-    legalBasis: LegalBasis.gdpr,
-    contactMethod: ContactMethod.form,
-    contactTarget: "https://www.paginegialle.it/opt-out",
-    portalUrl: "https://www.paginegialle.it/opt-out",
-    slaInDays: 30,
-    requiresFullName: true,
-    requiresIdProof: true,
-    acceptedDiscoveryKeys: [DiscoveryKey.phone, DiscoveryKey.address],
-    notes: "Stesso operatore di PagineBianche (SEAT PG SpA). Richiesta separata.",
-  },
-  {
-    name: "Atoka (Cerved)",
-    country: "IT",
-    legalBasis: LegalBasis.gdpr,
-    contactMethod: ContactMethod.email,
-    contactTarget: "privacy@cerved.com",
-    portalUrl: "https://atoka.io",
-    slaInDays: 30,
-    requiresFullName: true,
-    requiresIdProof: false,
-    acceptedDiscoveryKeys: [DiscoveryKey.email, DiscoveryKey.address],
-    notes: "Database imprenditoriale italiano. Richiedere cancellazione via email DPO Cerved.",
-  },
-  {
-    name: "Oracle BlueKai",
-    country: "US",
-    legalBasis: LegalBasis.gdpr,
-    contactMethod: ContactMethod.form,
-    contactTarget: "https://www.oracle.com/legal/privacy/marketing-cloud-data-cloud-privacy-policy.html#optout",
-    portalUrl: "https://datacloudoptout.oracle.com/optout",
-    slaInDays: 30,
-    requiresFullName: false,
-    requiresIdProof: false,
-    acceptedDiscoveryKeys: [DiscoveryKey.email],
-    notes: "Oracle Data Cloud / BlueKai. Opt-out via Oracle datacloudoptout portal. Rimozione interesse comportamentale e demografico.",
-  },
-];
+// 20260701 RG - Alzare questa versione quando cambia src/data/brokers.json: le
+// installazioni esistenti hanno già dei broker a DB, quindi senza un confronto di
+// versione il seed verrebbe saltato e non riceverebbero mai i nuovi.
+export const BROKERS_VERSION = "2026-07-14";
+const VERSION_KEY = "brokers_seed_version";
+
+type SeedBroker = {
+  name: string;
+  country: string;
+  legalBasis: string;
+  contactMethod: string;
+  contactTarget: string;
+  portalUrl?: string;
+  slaInDays: number;
+  requiresFullName: boolean;
+  requiresIdProof: boolean;
+  acceptedDiscoveryKeys: string[];
+  notes?: string;
+};
+
+export const brokers = brokerCatalog as SeedBroker[];
 
 export async function seedBrokers(): Promise<number> {
-  for (const b of brokers) {
-    const { acceptedDiscoveryKeys, ...rest } = b;
-    await prisma.broker.upsert({
-      where: { name: b.name },
-      update: {},
-      create: { ...rest, acceptedDiscoveryKeys: packList(acceptedDiscoveryKeys) },
+  const existing = new Set(
+    (await prisma.broker.findMany({ select: { name: true } })).map((b) => b.name)
+  );
+
+  const missing = brokers.filter((b) => !existing.has(b.name));
+  const ids = await nextIds("broker", missing.length);
+
+  // 20260701 RG - createMany in blocchi: con ~1900 righe, un upsert per broker
+  // significherebbe altrettante query e un primo avvio di parecchi secondi.
+  const CHUNK = 200;
+  for (let i = 0; i < missing.length; i += CHUNK) {
+    await prisma.broker.createMany({
+      data: missing.slice(i, i + CHUNK).map((b, j) => ({
+        id: ids[i + j],
+        name: b.name,
+        country: b.country,
+        legalBasis: b.legalBasis,
+        contactMethod: b.contactMethod,
+        contactTarget: b.contactTarget,
+        portalUrl: b.portalUrl ?? null,
+        slaInDays: b.slaInDays,
+        requiresFullName: b.requiresFullName,
+        requiresIdProof: b.requiresIdProof,
+        acceptedDiscoveryKeys: packList(b.acceptedDiscoveryKeys),
+        notes: b.notes ?? null,
+      })),
     });
   }
-  return brokers.length;
+
+  await setSetting(VERSION_KEY, BROKERS_VERSION);
+  return missing.length;
 }
 
-// 20260701 RG - Auto-esecuzione solo se lanciato come script (`node dist/seed.js`
-// dall'entrypoint). Come import, espone solo seedBrokers(), riusata dal reset.
+async function main() {
+  const current = await getSetting(VERSION_KEY);
+  if (current === BROKERS_VERSION) {
+    const n = await prisma.broker.count();
+    console.log(`Broker catalog already at ${BROKERS_VERSION} (${n} brokers) — skipping.`);
+    return;
+  }
+
+  console.log(`Seeding broker catalog ${BROKERS_VERSION}...`);
+  const added = await seedBrokers();
+  const total = await prisma.broker.count();
+  console.log(`Added ${added} new brokers (${total} total).`);
+}
+
 if (require.main === module) {
-  seedBrokers()
-    .then((n) => console.log(`Seeded ${n} brokers.`))
+  main()
     .catch(console.error)
     .finally(() => prisma.$disconnect());
 }

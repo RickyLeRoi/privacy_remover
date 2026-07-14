@@ -20,8 +20,11 @@ model Setting {
   updatedAt DateTime @updatedAt
 }
 
+// 20260701 RG - Gli id non hanno @default: sono brevi e progressivi (P001, A001,
+// B0001...) e vengono generati da src/lib/ids.ts, che tiene i contatori qui nella
+// tabella Setting. Ogni create deve quindi passare esplicitamente l'id.
 model Person {
-  id        String   @id @default(cuid())
+  id        String   @id
   label     String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -41,7 +44,7 @@ model Person {
 }
 
 model Address {
-  id       String  @id @default(cuid())
+  id       String   @id
   personId String
   person   Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
   street   String
@@ -52,7 +55,7 @@ model Address {
 }
 
 model Broker {
-  id                    String   @id @default(cuid())
+  id                    String   @id
   name                  String   @unique
   country               String
   legalBasis            String
@@ -72,7 +75,7 @@ model Broker {
 }
 
 model RemovalCase {
-  id          String   @id @default(cuid())
+  id          String   @id
   personId    String
   person      Person   @relation(fields: [personId], references: [id])
   brokerId    String
@@ -93,7 +96,7 @@ model RemovalCase {
 }
 
 model OutboundMessage {
-  id                String      @id @default(cuid())
+  id                String   @id
   caseId            String
   case              RemovalCase @relation(fields: [caseId], references: [id])
   channel           String
@@ -107,7 +110,7 @@ model OutboundMessage {
 }
 
 model Evidence {
-  id        String      @id @default(cuid())
+  id        String   @id
   caseId    String
   case      RemovalCase @relation(fields: [caseId], references: [id])
   type      String
@@ -118,7 +121,7 @@ model Evidence {
 }
 
 model VerificationTask {
-  id           String      @id @default(cuid())
+  id           String   @id
   caseId       String
   case         RemovalCase @relation(fields: [caseId], references: [id])
   scheduledFor DateTime

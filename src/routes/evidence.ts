@@ -4,6 +4,7 @@ import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 import { z } from "zod";
+import { nextId } from "../lib/ids";
 import { prisma } from "../lib/prisma";
 import { EVIDENCE_DIR, ensureEvidenceDir, sha256File } from "../lib/evidenceStore";
 
@@ -58,6 +59,7 @@ evidenceRouter.post(
 
     const evidence = await prisma.evidence.create({
       data: {
+        id: await nextId("evidence"),
         caseId: req.params.caseId,
         type: parsedType.data,
         filePath: path.relative(EVIDENCE_DIR, req.file.path),

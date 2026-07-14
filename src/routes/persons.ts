@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { nextId, nextIds } from "../lib/ids";
 import { prisma } from "../lib/prisma";
 import { packList, personOut } from "../lib/serialize";
 
@@ -37,13 +38,15 @@ personsRouter.post("/", async (req, res) => {
   const parsed = PersonSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json(parsed.error);
   const { addresses, emails, phones, aliases, ...rest } = parsed.data;
+  const addressIds = await nextIds("address", addresses.length);
   const person = await prisma.person.create({
     data: {
+      id: await nextId("person"),
       ...rest,
       emails:  packList(emails),
       phones:  packList(phones),
       aliases: packList(aliases),
-      addresses: { create: addresses },
+      addresses: { create: addresses.map((a, i) => ({ id: addressIds[i], ...a })) },
     },
     include: { addresses: true },
   });

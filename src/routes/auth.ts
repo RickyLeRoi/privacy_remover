@@ -7,6 +7,7 @@ import {
   setPassword,
   verifyPassword,
 } from "../lib/adminPassword";
+import { resetSequences } from "../lib/ids";
 import { prisma } from "../lib/prisma";
 import { authMiddleware } from "../middleware/auth";
 import { seedBrokers } from "../seed";
@@ -75,6 +76,10 @@ authRouter.post("/reset", authMiddleware, async (req, res) => {
   await prisma.address.deleteMany();
   await prisma.person.deleteMany();
   await prisma.broker.deleteMany();
+
+  // 20260701 RG - Azzerare i contatori PRIMA di riseminare: altrimenti i broker
+  // ricreati ripartirebbero da B1915 invece che da B0001.
+  await resetSequences();
 
   const brokers = await seedBrokers();
   await clearPassword();

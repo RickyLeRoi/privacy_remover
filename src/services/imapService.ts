@@ -1,6 +1,7 @@
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import { CaseStatus, EvidenceType } from "../lib/enums";
+import { nextId } from "../lib/ids";
 import { prisma } from "../lib/prisma";
 import { writeEvidenceFile } from "../lib/evidenceStore";
 import { log, logErr } from "../index";
@@ -81,6 +82,7 @@ async function processMessage(parsed: Awaited<ReturnType<typeof simpleParser>>) 
     );
     await prisma.evidence.create({
       data: {
+        id: await nextId("evidence"),
         caseId: c.id,
         type: EvidenceType.broker_response,
         filePath: stored.filePath,

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { nextId } from "../lib/ids";
 import { prisma } from "../lib/prisma";
 import { packList, brokerOut } from "../lib/serialize";
 
@@ -39,7 +40,7 @@ brokersRouter.post("/", async (req, res) => {
   if (!parsed.success) return res.status(400).json(parsed.error);
   const { acceptedDiscoveryKeys, ...rest } = parsed.data;
   const b = await prisma.broker.create({
-    data: { ...rest, acceptedDiscoveryKeys: packList(acceptedDiscoveryKeys) },
+    data: { id: await nextId("broker"), ...rest, acceptedDiscoveryKeys: packList(acceptedDiscoveryKeys) },
   });
   res.status(201).json(brokerOut(b));
 });

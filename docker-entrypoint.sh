@@ -24,17 +24,11 @@ log "Applying database schema (prisma db push)..."
 npx prisma db push --skip-generate --accept-data-loss
 log "Schema applied."
 
-BROKER_COUNT="$(node -e "
-  const { PrismaClient } = require('@prisma/client');
-  const p = new PrismaClient();
-  p.broker.count().then((n) => { console.log(n); return p.\$disconnect(); }).catch(() => { console.log(0); process.exit(0); });
-" 2>/dev/null || echo 0)"
-if [ "$BROKER_COUNT" = "0" ]; then
-  log "No brokers found — seeding pre-loaded broker list..."
-  node dist/seed.js || log "Seed step failed (non-fatal), continuing."
-else
-  log "Brokers already present ($BROKER_COUNT) — skipping seed."
-fi
+# 20260701 RG - Il seed si auto-salta se il catalogo a DB è già alla versione
+# corrente, quindi può girare a ogni avvio: è così che un'installazione esistente
+# riceve i broker aggiunti in una nuova versione dell'immagine.
+log "Syncing broker catalog..."
+node dist/seed.js || log "Seed step failed (non-fatal), continuing."
 
 log "Starting app..."
 exec node dist/index.js
