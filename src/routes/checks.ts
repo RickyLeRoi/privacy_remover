@@ -14,11 +14,11 @@ export const checksRouter = Router();
 function buildSearchUrl(
   template: string | null,
   portalUrl: string | null,
-  person: { emails: string; phones: string; fullName: string | null; addresses: { city: string }[] }
+  person: { email: string; phones: string; fullName: string | null; addresses: { city: string }[] }
 ): string | null {
   if (!template) return portalUrl;
 
-  const email = unpackList(person.emails)[0] ?? "";
+  const email = person.email;
   const phone = (unpackList(person.phones)[0] ?? "").replace(/[^\d+]/g, "");
   const name = person.fullName ?? "";
   const city = person.addresses[0]?.city ?? "";

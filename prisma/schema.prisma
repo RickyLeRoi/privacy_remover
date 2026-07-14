@@ -29,7 +29,13 @@ model Person {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  emails    String   @default("[]")
+  // 20260714 RG - Una Person = UNA email, ed è chiave secondaria. Due email della
+  // stessa persona fisica vanno in due Person distinte ("Ricky privata", "Ricky
+  // lavoro"): il messaggio al broker riporta l'email della Person, quindi tenerne
+  // due sullo stesso record significherebbe rivelare al broker un indirizzo che
+  // magari non aveva (minimizzazione, Art.5(1)(c)). L'unicità impedisce anche di
+  // aprire per sbaglio due volte le stesse pratiche sullo stesso indirizzo.
+  email     String   @unique
   phones    String   @default("[]")
   addresses Address[]
 

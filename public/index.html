@@ -46,6 +46,12 @@ html,body{height:100%;overflow:hidden;-webkit-font-smoothing:antialiased}
 body{font-family:'Satoshi',sans-serif;font-size:var(--text-sm);line-height:1.55;color:var(--text);background:var(--bg)}
 button,input,select,textarea{font:inherit;color:inherit}
 button{border:none;background:none;cursor:pointer}
+/* Senza questa regola i link restano sul blu/viola di default del browser, che sul tema scuro è illeggibile. */
+a{color:var(--pri);text-decoration:underline;text-underline-offset:2px;transition:color var(--trans)}
+a:visited{color:var(--pri)}
+/* --pri-h è più scuro di --pri, quindi sul tema scuro sparirebbe: si vira verso il
+   colore del testo, che alza il contrasto in entrambi i temi. */
+a:hover{color:color-mix(in oklab,var(--pri) 70%,var(--text))}
 input,select,textarea{border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--surf2);padding:.65rem .75rem;width:100%;transition:border-color var(--trans),box-shadow var(--trans)}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--pri);box-shadow:0 0 0 3px color-mix(in oklab,var(--pri) 20%,transparent)}
 textarea{resize:vertical;min-height:90px}
@@ -349,9 +355,9 @@ const S = {
 // ──────────────────────────────────────────────────────────────
 const DEMO = {
   persons: [
-    {id:'p1',label:'Ricky',emails:['ricky@example.com'],phones:['+39 333 1111111'],addresses:[{id:'a1',street:'Via Roma 1',city:'Milano',country:'IT',current:true}],aliases:['rick.g']},
-    {id:'p2',label:'Giulia',emails:['giulia@example.com'],phones:['+39 335 2222222'],addresses:[{id:'a2',street:'Via Roma 1',city:'Milano',country:'IT',current:true}],aliases:[]},
-    {id:'p3',label:'Marco',emails:['marco.giordano@gmail.com'],phones:['+39 340 3333333'],addresses:[{id:'a3',street:'Via Verdi 5',city:'Torino',country:'IT',current:true}],aliases:['m.giordano']},
+    {id:'p1',label:'Ricky',email:'ricky@example.com',phones:['+39 333 1111111'],addresses:[{id:'a1',street:'Via Roma 1',city:'Milano',country:'IT',current:true}],aliases:['rick.g']},
+    {id:'p2',label:'Giulia',email:'giulia@example.com',phones:['+39 335 2222222'],addresses:[{id:'a2',street:'Via Roma 1',city:'Milano',country:'IT',current:true}],aliases:[]},
+    {id:'p3',label:'Marco',email:'marco.giordano@gmail.com',phones:['+39 340 3333333'],addresses:[{id:'a3',street:'Via Verdi 5',city:'Torino',country:'IT',current:true}],aliases:['m.giordano']},
   ],
   brokers: [
     {id:'b1',name:'Spokeo',country:'US',legalBasis:'gdpr',contactMethod:'form',contactTarget:'https://www.spokeo.com/optout',slaInDays:10,requiresFullName:false,requiresIdProof:false,acceptedDiscoveryKeys:['email','phone']},
@@ -681,7 +687,7 @@ function renderPersone() {
             const barColor = pct===100?'var(--ok)':pct>50?'var(--pri)':'var(--warn)';
             return `<tr>
               <td><strong>${esc(p.label)}</strong></td>
-              <td>${p.emails.map(e=>`<span class="chip chip-muted">${esc(e)}</span>`).join(' ')}</td>
+              <td><span class="chip chip-muted">${esc(p.email)}</span></td>
               <td>${p.phones.map(ph=>`<span class="chip chip-muted">${esc(ph)}</span>`).join(' ')}</td>
               <td>${(p.addresses||[]).map(a=>`<span class="chip chip-muted">${esc(a.city)}</span>`).join(' ')}</td>
               <td>${p.aliases.length?p.aliases.map(a=>`<span class="chip chip-muted">${esc(a)}</span>`).join(' '):'<span style="color:var(--faint)">—</span>'}</td>
@@ -695,6 +701,9 @@ function renderPersone() {
                 </div>
               </td>
               <td style="white-space:nowrap">
+                <button class="btn btn-ghost btn-sm" onclick="showEditPersonModal('${p.id}')" title="Modifica email, telefoni, alias e indirizzo">
+                  Modifica
+                </button>
                 <button class="btn btn-ghost btn-sm" onclick="showBulkModal('${p.id}')" title="Apre una pratica su ogni broker, senza inviare nulla">
                   Cerca su tutti i broker
                 </button>
@@ -795,10 +804,18 @@ function showBulkModal(personId) {
   });
 }
 
-function showAddPersonModal() {
+function showAddPersonModal() { showPersonModal(null); }
+function showEditPersonModal(id) { showPersonModal(id); }
+
+// Stesso form per creazione e modifica: se arriva un id, i campi partono pieni.
+function showPersonModal(id) {
+  const p    = id ? personById(id) : null;
+  const addr = (p && (p.addresses||[])[0]) || null;
+  const val  = (s) => esc(s || '');
+
   openModal(`<div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="modal-head">
-      <div class="modal-title" id="modal-title">Nuova persona</div>
+      <div class="modal-title" id="modal-title">${p ? 'Modifica '+esc(p.label) : 'Nuova persona'}</div>
       <button class="modal-close" aria-label="Chiudi">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
@@ -810,57 +827,63 @@ function showAddPersonModal() {
       </div>
       <div class="field">
         <label for="np-label">Etichetta interna</label>
-        <input id="np-label" placeholder="Es. Ricky, Mamma, etc.">
+        <input id="np-label" placeholder="Es. Ricky privata, Ricky lavoro" value="${val(p&&p.label)}">
         <div class="field-hint">Solo per uso interno — non viene inviata ai broker</div>
       </div>
       <div class="field">
-        <label for="np-emails">Email (una per riga)</label>
-        <textarea id="np-emails" placeholder="ricky@email.com&#10;ricky.old@gmail.com" style="min-height:70px"></textarea>
+        <label for="np-email">Email</label>
+        <input id="np-email" type="email" placeholder="ricky@email.com" value="${val(p && p.email)}">
+        <div class="field-hint">Una sola email per persona. Per cercarne una seconda, crea un'altra persona: così ogni broker riceve solo l'indirizzo che lo riguarda.</div>
       </div>
       <div class="field-row">
         <div class="field">
           <label for="np-phones">Telefono (uno per riga)</label>
-          <textarea id="np-phones" placeholder="+39 333 1111111" style="min-height:70px"></textarea>
+          <textarea id="np-phones" placeholder="+39 333 1111111" style="min-height:70px">${val(p && (p.phones||[]).join('\n'))}</textarea>
         </div>
         <div class="field">
           <label for="np-aliases">Alias / username</label>
-          <textarea id="np-aliases" placeholder="username_vecchio&#10;nome_da_nubile" style="min-height:70px"></textarea>
+          <textarea id="np-aliases" placeholder="username_vecchio&#10;nome_da_nubile" style="min-height:70px">${val(p && (p.aliases||[]).join('\n'))}</textarea>
         </div>
       </div>
       <div class="field">
         <label for="np-street">Indirizzo (via e numero)</label>
-        <input id="np-street" placeholder="Via Roma 1">
+        <input id="np-street" placeholder="Via Roma 1" value="${val(addr && addr.street)}">
       </div>
       <div class="field-row">
-        <div class="field"><label for="np-city">Città</label><input id="np-city" placeholder="Milano"></div>
-        <div class="field"><label for="np-country">Paese</label><input id="np-country" value="IT" placeholder="IT"></div>
+        <div class="field"><label for="np-city">Città</label><input id="np-city" placeholder="Milano" value="${val(addr && addr.city)}"></div>
+        <div class="field"><label for="np-country">Paese</label><input id="np-country" placeholder="IT" value="${val((addr && addr.country) || 'IT')}"></div>
       </div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal()">Annulla</button>
-      <button class="btn btn-primary" onclick="submitAddPerson()">Salva</button>
+      <button class="btn btn-primary" onclick="submitPerson(${p ? "'"+p.id+"'" : 'null'})">Salva</button>
     </div>
   </div>`);
 }
 
-async function submitAddPerson() {
+async function submitPerson(id) {
   const label   = document.getElementById('np-label').value.trim();
-  const emails  = document.getElementById('np-emails').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  const email   = document.getElementById('np-email').value.trim();
   const phones  = document.getElementById('np-phones').value.split('\n').map(s=>s.trim()).filter(Boolean);
   const aliases = document.getElementById('np-aliases').value.split('\n').map(s=>s.trim()).filter(Boolean);
   const street  = document.getElementById('np-street').value.trim();
   const city    = document.getElementById('np-city').value.trim();
   const country = document.getElementById('np-country').value.trim()||'IT';
   if(!label){ toast('err','Inserisci un\'etichetta'); return; }
-  if(!emails.length){ toast('err','Almeno un\'email'); return; }
-  const body = { label, emails, phones, aliases, addresses: street?[{street,city,country,current:true}]:[] };
+  if(!email){ toast('err','Inserisci l\'email'); return; }
+  const body = { label, email, phones, aliases, addresses: street?[{street,city,country,current:true}]:[] };
+
   if(S.demo){
-    S.persons.push({id:'p'+(Date.now()),label,emails,phones,aliases,addresses:body.addresses});
+    if(id){ Object.assign(personById(id), body); }
+    else  { S.persons.push({id:'p'+(Date.now()),...body}); }
   } else {
-    try{ await api('POST','/api/persons',body); await loadAll(); }
+    try{
+      await api(id ? 'PUT' : 'POST', id ? '/api/persons/'+id : '/api/persons', body);
+      await loadAll();
+    }
     catch(e){ toast('err','Errore: '+e.message); return; }
   }
-  closeModal(); toast('ok','Persona aggiunta'); renderPersone();
+  closeModal(); toast('ok', id ? 'Persona aggiornata' : 'Persona aggiunta'); renderPersone();
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -1209,8 +1232,8 @@ function showSendModal(caseId) {
   const person = personById(c.personId);
   const broker = brokerById(c.brokerId);
   const identLines = [];
-  if((broker.acceptedDiscoveryKeys||[]).includes('email') && person.emails?.length)
-    identLines.push('Email: '+person.emails.join(', '));
+  if((broker.acceptedDiscoveryKeys||[]).includes('email') && person.email)
+    identLines.push('Email: '+person.email);
   if((broker.acceptedDiscoveryKeys||[]).includes('phone') && person.phones?.length)
     identLines.push('Phone: '+person.phones.join(', '));
   if((broker.acceptedDiscoveryKeys||[]).includes('address') && person.addresses?.length)
@@ -1533,8 +1556,8 @@ async function showFullNameModal(caseId) {
   }
 
   const identLines = [];
-  if((broker.acceptedDiscoveryKeys||[]).includes('email') && person.emails?.length)
-    identLines.push('Email: '+person.emails.join(', '));
+  if((broker.acceptedDiscoveryKeys||[]).includes('email') && person.email)
+    identLines.push('Email: '+person.email);
   if((broker.acceptedDiscoveryKeys||[]).includes('phone') && person.phones?.length)
     identLines.push('Phone: '+person.phones.join(', '));
   if((broker.acceptedDiscoveryKeys||[]).includes('address') && person.addresses?.length)

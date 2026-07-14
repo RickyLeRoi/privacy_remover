@@ -20,15 +20,16 @@ export function generateMessage(
   kind: RequestKind = "erasure"
 ): { subject: string; body: string; discoveryKeysUsed: DiscoveryKey[]; templateKey: string } {
   const acceptedKeys = unpackList(broker.acceptedDiscoveryKeys);
-  const emails = unpackList(person.emails);
   const phones = unpackList(person.phones);
 
   const keysUsed: DiscoveryKey[] = [];
   const identityLines: string[] = [];
 
-  if (acceptedKeys.includes("email") && emails.length > 0) {
+  // 20260714 RG - Una Person ha una sola email, quindi al broker ne arriva sempre e
+  // solo una: non c'è modo di rivelargli un secondo indirizzo che non aveva.
+  if (acceptedKeys.includes("email") && person.email) {
     keysUsed.push("email");
-    identityLines.push(`Email: ${emails.join(", ")}`);
+    identityLines.push(`Email: ${person.email}`);
   }
   if (acceptedKeys.includes("phone") && phones.length > 0) {
     keysUsed.push("phone");

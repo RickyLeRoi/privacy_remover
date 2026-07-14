@@ -16,12 +16,13 @@ export function unpackList(s: string | null | undefined): string[] {
   }
 }
 
-export function personOut<T extends { emails: string; phones: string; aliases: string }>(
+// 20260714 RG - `email` è una colonna scalare e non passa di qui: solo phones e
+// aliases sono liste JSON.
+export function personOut<T extends { phones: string; aliases: string }>(
   p: T
-): Omit<T, "emails" | "phones" | "aliases"> & { emails: string[]; phones: string[]; aliases: string[] } {
+): Omit<T, "phones" | "aliases"> & { phones: string[]; aliases: string[] } {
   return {
     ...p,
-    emails: unpackList(p.emails),
     phones: unpackList(p.phones),
     aliases: unpackList(p.aliases),
   };

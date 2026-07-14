@@ -1,7 +1,6 @@
 import { Router } from "express";
 import PDFDocument from "pdfkit";
 import { prisma } from "../lib/prisma";
-import { unpackList } from "../lib/serialize";
 
 export const exportRouter = Router();
 
@@ -36,7 +35,7 @@ async function fetchCases(personId?: string) {
   return prisma.removalCase.findMany({
     where: personId ? { personId } : undefined,
     include: {
-      person: { select: { id: true, label: true, emails: true } },
+      person: { select: { id: true, label: true, email: true } },
       broker: { select: { name: true, country: true, legalBasis: true, contactMethod: true } },
       messages: { select: { sentAt: true }, orderBy: { createdAt: "asc" }, take: 1 },
       evidence: { select: { id: true } },
@@ -67,7 +66,7 @@ exportRouter.get("/csv", async (req, res) => {
   const rows = cases.map((c) =>
     [
       c.person.label,
-      unpackList(c.person.emails).join("; "),
+      c.person.email,
       c.broker.name,
       c.broker.country,
       c.broker.legalBasis,
@@ -146,7 +145,7 @@ exportRouter.get("/pdf", async (req, res) => {
     doc.addPage();
     doc.fontSize(14).font("Helvetica-Bold").fillColor("#000000").text(personLabel);
     doc.fontSize(9).font("Helvetica").fillColor("#444444")
-      .text(unpackList(personCases[0].person.emails).join(", "));
+      .text(personCases[0].person.email);
     doc.moveDown(0.8);
 
     const pDone = personCases.filter((c) => c.status === "CONFIRMED").length;
