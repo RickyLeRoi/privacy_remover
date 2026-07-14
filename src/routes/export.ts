@@ -1,8 +1,8 @@
-import { Router } from "express";
 import PDFDocument from "pdfkit";
 import { prisma } from "../lib/prisma";
+import { asyncRouter } from "../lib/asyncRouter";
 
-export const exportRouter = Router();
+export const exportRouter = asyncRouter();
 
 function fmtDate(d: Date | string | null | undefined): string {
   if (!d) return "—";

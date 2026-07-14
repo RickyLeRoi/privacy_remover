@@ -179,18 +179,50 @@ Ogni riga di log ha il formato `ISO-timestamp [tag] messaggio`, es.:
 
 La dashboard è disponibile su `http://localhost:3000`.
 
-## Variabili d'ambiente principali
+## Variabili d'ambiente
 
-| Variabile | Descrizione |
-|-----------|-------------|
-| `DATABASE_URL` | Percorso file SQLite, es. `file:/app/data/app.db` |
-| `ADMIN_PASSWORD_HASH` | Solo per recupero: se valorizzata ha la precedenza sulla password scelta al primo avvio |
-| `SMTP_HOST/PORT/USER/PASS` | Configurazione SMTP per l'invio email |
-| `IMAP_HOST/PORT/USER/PASS` | Configurazione IMAP per il parsing delle risposte (opzionale) |
-| `IMAP_ENABLED` | Abilita/disabilita il polling IMAP (`true`/`false`) |
-| `BACKUP_PASSPHRASE` | Passphrase per la cifratura dei backup (AES-256) |
+Sono già tutte scritte, con i loro default, dentro [docker-compose.vm.yml](docker-compose.vm.yml): **non serve compilarle tutte**. Quelle con un default sensato funzionano così come sono, e in pratica devi valorizzare solo i segreti (SMTP, IMAP, `BACKUP_PASSPHRASE`).
 
-Vedere [.env.example](.env.example) per la lista completa.
+I segreti non vanno scritti nel compose, che finisce su git: mettili in un file `.env` accanto al compose e la sintassi `${VAR:-default}` li raccoglie da lì.
+
+| Variabile | Default | A cosa serve |
+|---|---|---|
+| `DATABASE_URL` | `file:/app/data/app.db` | File SQLite. In Docker **deve** puntare al volume, altrimenti il DB muore col container. |
+| `PORT` | `3000` | Porta di ascolto. |
+| `NODE_ENV` | `production` | — |
+| `TRUST_PROXY` | `0` | Quanti reverse proxy fidati ci sono davanti. **Lasciare 0** senza proxy: a 1 chiunque aggira il rate limit falsificando `X-Forwarded-For`. |
+| `SEND_INTERVAL_MS` | `20000` | Intervallo fra due invii. Spedire centinaia di email di fila fa bloccare la casella. |
+| `ADMIN_PASSWORD_HASH` | *(vuoto)* | **Solo per recupero.** La password si sceglie al primo avvio nella dashboard. Se valorizzata ha la precedenza sul DB. |
+| `SMTP_HOST` | *(vuoto)* | Senza, l'app funziona ma non spedisce nulla. |
+| `SMTP_PORT` | `587` | |
+| `SMTP_USER` / `SMTP_PASS` | *(vuoti)* | Credenziali della casella che spedisce. |
+| `SMTP_FROM` | *(vuoto)* | Mittente, es. `Privacy Bot <removal@dominio.it>`. |
+| `IMAP_ENABLED` | `false` | A `true` legge le risposte dei broker e aggiorna le pratiche. |
+| `IMAP_HOST` | *(vuoto)* | Se manca, il poller si salta da solo. |
+| `IMAP_PORT` | `993` | |
+| `IMAP_TLS` | `true` | |
+| `IMAP_USER` / `IMAP_PASS` | *(vuoti)* | Credenziali della casella da leggere. |
+| `IMAP_MAILBOX` | `INBOX` | |
+| `BACKUP_PASSPHRASE` | *(vuoto)* | Cifratura dell'archivio di backup (AES-256). Senza, `backup.sh` si rifiuta di partire. |
+
+## Backup
+
+`scripts/backup.sh` produce un archivio cifrato con **database + prove** (le prove da sole non bastano: il DB le referenzia per path).
+
+```bash
+BACKUP_PASSPHRASE='passphrase-robusta' ./scripts/backup.sh
+```
+
+Usa `sqlite3 .backup`, che è transazionale: la copia è coerente anche con l'app che sta scrivendo (un `cp` a caldo può catturare pagine a metà transazione e produrre un file corrotto, di cui te ne accorgi solo il giorno del ripristino). Alla fine **rilegge l'archivio per verificare che si decifri**, e tiene 30 giorni di storico.
+
+Ripristino:
+
+```bash
+BACKUP_PASSPHRASE='...' openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 \
+  -pass env:BACKUP_PASSPHRASE -in backups/backup_XXX.tar.gz.enc | tar -xzf - -C /tmp/restore
+```
+
+Poi rimetti `/tmp/restore/app.db` e `/tmp/restore/evidence/` al loro posto.
 
 ## API
 
@@ -200,6 +232,7 @@ Tutte le rotte sotto `/api` richiedono `Authorization: Bearer <password>`, **tra
 |--------|------|-------------|
 | GET | `/api/auth/status` | Dice se la password è già stata impostata (pubblica) |
 | POST | `/api/auth/setup` | Imposta la password al primo avvio (pubblica, risponde 409 se già configurata) |
+| GET | `/api/auth/verify` | Valida la password con una sola richiesta (lo usa il login) |
 | POST | `/api/auth/change-password` | Cambia la password |
 | POST | `/api/auth/reset` | **Distruttivo**: cancella tutti i dati, azzera la password, riseminando i broker |
 | GET | `/api/persons` | Lista persone (fullName omesso) |
@@ -252,6 +285,7 @@ src/
   lib/enums.ts           — enum applicativi (SQLite non ha enum nativi)
   lib/serialize.ts       — array <-> JSON string (SQLite non ha array nativi)
   lib/ids.ts             — id brevi e progressivi (P001, A001, B0001…)
+  lib/asyncRouter.ts     — inoltra le rejection async all'error handler (Express 4 non lo fa)
   middleware/auth.ts     — autenticazione Bearer token
   routes/
     persons.ts           — anagrafica (una email per persona)
@@ -271,9 +305,8 @@ public/
 evidence/                — storage locale file prova (volume Docker)
 scripts/
   build-brokers.js       — genera src/data/brokers.json dalle fonti pubbliche
-  backup.sh              — backup DB cifrato (da adeguare a SQLite: copiare il file .db)
+  backup.sh              — backup cifrato di DB + prove (SQLite)
 Data_Broker_Full_Registry_2025.csv — registri USA, fonte del generatore
-Caddyfile                — reverse proxy HTTPS (opzionale)
 ```
 
 ## Note sulla privacy

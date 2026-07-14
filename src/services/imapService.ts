@@ -6,28 +6,38 @@ import { prisma } from "../lib/prisma";
 import { writeEvidenceFile } from "../lib/evidenceStore";
 import { log, logErr } from "../index";
 
+// 20260715 RG - Le conferme devono essere frasi complete al participio ("has been
+// removed", "abbiamo cancellato"). Prima bastavano /removed?/ e /deleted?/, che
+// matchano anche "remove" e "delete" da sole: un "we cannot remove your data" — o un
+// auto-reply che citava la NOSTRA richiesta, che contiene "delete all personal data" —
+// chiudeva la pratica come CONFIRMED.
 const CONFIRMED_PATTERNS = [
-  /removed?/i,
-  /deleted?/i,
-  /erasure.{0,20}complet/i,
-  /opt.?out.{0,20}confirmed/i,
-  /rimoss[oa]/i,
-  /cancellat[oa]/i,
-  /request.{0,30}processed/i,
-  /has been processed/i,
-  /successfully removed/i,
-  /opt-out confirmed/i,
-  /conferm/i,
+  /(?:has|have) been (?:permanently |successfully )?(?:removed|deleted|erased|suppressed)/i,
+  /(?:we|i) (?:have )?(?:removed|deleted|erased)\b/i,
+  /successfully (?:removed|deleted|erased|processed)/i,
+  /erasure.{0,20}(?:complet|fulfil)/i,
+  /opt.?out.{0,20}(?:confirmed|complet)/i,
+  /(?:your|the) request.{0,30}(?:has been )?(?:completed|fulfilled)/i,
+  /(?:sono|sono stati|è stato) (?:rimoss|cancellat|eliminat)[oiae]/i,
+  /(?:abbiamo|ho) (?:rimosso|cancellato|eliminato)/i,
+  /(?:dati|dato).{0,30}(?:rimoss|cancellat|eliminat)[oiae]/i,
 ];
 
+// 20260715 RG - Testati PRIMA delle conferme: un rifiuto contiene quasi sempre anche il
+// verbo della conferma ("your data cannot be removed"). Vanno tenuti larghi: un falso
+// rifiuto costa una verifica in più, una falsa conferma chiude la pratica lasciando i
+// dati online.
 const DENIED_PATTERNS = [
+  /(?:cannot|can not|can't|could not|couldn't|unable to|won't|will not)\s+(?:be\s+)?(?:process|remove|delete|erase|comply|fulfil)/i,
+  /not (?:be )?(?:removed|deleted|erased|processed)/i,
   /unable to process/i,
-  /cannot be processed/i,
-  /denied/i,
-  /negat/i,
-  /additional information required/i,
+  /denied|rejected|refus/i,
+  /negat|rifiut/i,
+  /(?:additional|further) (?:information|documentation)\s+(?:is )?(?:required|needed)/i,
+  /(?:identity|verification|proof of identity|government[- ]issued)\s*(?:document|id)?\s*(?:is )?(?:required|needed)/i,
   /verification required/i,
-  /non (?:possiamo|è possibile)/i,
+  /non (?:possiamo|è possibile|possono)/i,
+  /(?:documento|carta d'identità).{0,30}(?:necessari|richiest)/i,
 ];
 
 // La risposta tipica a una richiesta di accesso (Art.15) quando il broker non ti ha:
@@ -41,17 +51,60 @@ const NO_DATA_PATTERNS = [
   /no match(?:es)? (?:were )?found/i,
 ];
 
-// 20260701 RG - La classificazione è solo euristica su keyword: "removed" compare
-// anche in frasi negative ("cannot be removed"), quindi può chiudere una pratica
-// che invece è stata rifiutata. Verificare sempre a mano prima di fidarsi.
-// L'ordine conta: "non trattiamo dati" va riconosciuto PRIMA di "confirmed",
-// altrimenti un "we do not hold your data" verrebbe letto come una conferma.
-function classify(subject: string, body: string | false): "no_data" | "confirmed" | "denied" | "unknown" {
-  const text = `${subject} ${body}`;
+// 20260715 RG - Gli helpdesk rispondono citando il messaggio originale, che contiene
+// "permanently delete all personal data": senza tagliarlo si finisce per classificare
+// le parole della NOSTRA richiesta scambiandole per la risposta del broker.
+const QUOTE_MARKERS = [
+  /^-{2,}\s*original message\s*-{2,}/im,
+  /^_{5,}/m,
+  /^on .{0,80}\bwrote:/im,
+  /^il giorno .{0,80}\bha scritto:/im,
+  /^from:\s.+$/im,
+  /^da:\s.+$/im,
+  /your (?:original )?(?:message|request)(?: was)?:/i,
+  /messaggio originale:/i,
+];
+
+export function stripQuotedText(body: string): string {
+  let text = body;
+
+  // Taglia dal primo marcatore di citazione in poi.
+  for (const marker of QUOTE_MARKERS) {
+    const m = text.match(marker);
+    if (m && m.index !== undefined) text = text.slice(0, m.index);
+  }
+
+  // Righe che iniziano con ">" sono citazione riga per riga.
+  return text
+    .split("\n")
+    .filter((line) => !line.trimStart().startsWith(">"))
+    .join("\n");
+}
+
+// 20260715 RG - L'ordine è la parte critica: no_data → denied → confirmed. La conferma
+// è l'unico verdetto che chiude la pratica, quindi va riconosciuta per ultima e con i
+// criteri più stretti.
+export function classify(
+  subject: string,
+  body: string | false
+): "no_data" | "confirmed" | "denied" | "unknown" {
+  const text = `${subject}\n${stripQuotedText(typeof body === "string" ? body : "")}`;
   if (NO_DATA_PATTERNS.some((r) => r.test(text))) return "no_data";
-  if (CONFIRMED_PATTERNS.some((r) => r.test(text))) return "confirmed";
   if (DENIED_PATTERNS.some((r) => r.test(text))) return "denied";
+  if (CONFIRMED_PATTERNS.some((r) => r.test(text))) return "confirmed";
   return "unknown";
+}
+
+// 20260715 RG - Il campo From: è banale da falsificare e la casella da cui scrivi è nota
+// a ogni broker: senza questo controllo chiunque può spedirti un "your data has been
+// removed" spacciandosi per privacy@broker.com e farti chiudere la pratica.
+// Authentication-Results lo scrive il TUO server dopo aver validato SPF/DKIM/DMARC: è
+// l'unico giudizio non controllato dal mittente. Se manca, non si chiude nulla.
+export function isSenderAuthenticated(headerValue: unknown): boolean {
+  const raw = Array.isArray(headerValue) ? headerValue.join(" ") : String(headerValue ?? "");
+  if (!raw) return false;
+  if (/dmarc=pass/i.test(raw)) return true;
+  return /dkim=pass/i.test(raw) || /spf=pass/i.test(raw);
 }
 
 // 20260701 RG - L'abbinamento avviene solo per uguaglianza esatta tra il mittente
@@ -86,8 +139,18 @@ async function processMessage(parsed: Awaited<ReturnType<typeof simpleParser>>) 
   const matchedCases = await matchCase(from);
   if (!matchedCases.length) return;
 
-  const verdict = classify(subject, body);
-  log("imap", `from=${from} | subject="${subject.slice(0, 60)}" → ${verdict} | ${matchedCases.length} case(s)`);
+  let verdict = classify(subject, body);
+
+  // 20260715 RG - Solo un mittente autenticato può CHIUDERE una pratica. Se SPF/DKIM
+  // non risultano passati, il verdetto viene declassato: la mail resta agli atti come
+  // prova, ma la pratica va in revisione manuale invece di risultare risolta.
+  const authenticated = isSenderAuthenticated(parsed.headers.get("authentication-results"));
+  if (!authenticated && (verdict === "confirmed" || verdict === "no_data")) {
+    log("imap", `from=${from} NON autenticato (SPF/DKIM non passati o header assente): "${verdict}" declassato a revisione manuale`);
+    verdict = "unknown";
+  }
+
+  log("imap", `from=${from} | subject="${subject.slice(0, 60)}" → ${verdict} | auth=${authenticated} | ${matchedCases.length} case(s)`);
 
   for (const c of matchedCases) {
     const stored = writeEvidenceFile(

@@ -1,8 +1,0 @@
-# 20260701 RG - Sostituire "privacy.local" con l'hostname reale del server (o con
-# quello Tailscale, formato machine.tail-xxxxx.ts.net). Con `tls internal` Caddy
-# emette un certificato self-signed: il browser mostrerà un avviso.
-# Usando Caddy, il container app non deve più esporre la porta 3000.
-privacy.local {
-  tls internal
-  reverse_proxy app:3000
-}

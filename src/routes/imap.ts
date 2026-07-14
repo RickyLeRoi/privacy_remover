@@ -1,8 +1,8 @@
-import { Router } from "express";
 import { lastImapPoll, lastImapError } from "../services/schedulerService";
 import { pollInbox } from "../services/imapService";
+import { asyncRouter } from "../lib/asyncRouter";
 
-export const imapRouter = Router();
+export const imapRouter = asyncRouter();
 
 imapRouter.get("/status", (_req, res) => {
   const enabled = process.env.IMAP_ENABLED !== "false";

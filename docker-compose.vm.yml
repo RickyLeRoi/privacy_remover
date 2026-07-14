@@ -1,17 +1,61 @@
 version: "3.9"
 # 20260701 RG - Compose per la VM: usa l'immagine pubblicata, nessun sorgente da
 # copiare. Il DB SQLite è embedded, quindi non serve nessun container di database.
+#
+# 20260715 RG - Le variabili stanno qui invece che in un .env: quelle con un default
+# sensato sono già valorizzate, e restano da compilare solo i segreti (SMTP/IMAP) e
+# BACKUP_PASSPHRASE. La sintassi ${VAR:-default} prende comunque il valore da un .env
+# accanto al compose, se presente: comodo per non mettere le password nel file che
+# finisce su git. Tabella completa nel README.
 services:
   app:
     image: ghcr.io/rickyleroi/privacy_remover:latest
     restart: unless-stopped
-    env_file: .env
     ports:
-      # 20260701 RG - Aperto su tutte le interfacce: raggiungibile da tutta la LAN.
+      # Aperto su tutte le interfacce: raggiungibile da tutta la LAN. Il traffico è in
+      # HTTP puro e il token Bearer È la password, inviata a ogni richiesta: chi
+      # intercetta un pacchetto sulla LAN ottiene la password. Accettabile su una rete
+      # di casa fidata, non su una condivisa.
       - "3000:3000"
     volumes:
       - dbdata:/app/data
       - evidence:/app/evidence
+    environment:
+      DATABASE_URL: "file:/app/data/app.db"
+      PORT: "3000"
+      NODE_ENV: "production"
+
+      # 0 = nessun reverse proxy davanti. Alzare a 1 solo se se ne aggiunge uno, o il
+      # rate limit diventa aggirabile con un X-Forwarded-For falsificato.
+      TRUST_PROXY: "0"
+
+      # Un invio ogni 20s: spedirne centinaia di fila farebbe bloccare la casella.
+      SEND_INTERVAL_MS: "20000"
+
+      # La password si sceglie al primo avvio nella dashboard. Questa serve SOLO per
+      # recupero, se la dimentichi. Generarla con:
+      #   node -e "console.log(require('bcryptjs').hashSync('tuapassword', 12))"
+      ADMIN_PASSWORD_HASH: "${ADMIN_PASSWORD_HASH:-}"
+
+      # Invio delle richieste ai broker. Senza, l'app funziona ma non spedisce.
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_PORT: "${SMTP_PORT:-587}"
+      SMTP_USER: "${SMTP_USER:-}"
+      SMTP_PASS: "${SMTP_PASS:-}"
+      SMTP_FROM: "${SMTP_FROM:-}"
+
+      # Lettura delle risposte dei broker. IMAP_ENABLED=false disattiva il poller:
+      # l'app funziona lo stesso, gli stati si aggiornano a mano.
+      IMAP_ENABLED: "${IMAP_ENABLED:-false}"
+      IMAP_HOST: "${IMAP_HOST:-}"
+      IMAP_PORT: "${IMAP_PORT:-993}"
+      IMAP_TLS: "${IMAP_TLS:-true}"
+      IMAP_USER: "${IMAP_USER:-}"
+      IMAP_PASS: "${IMAP_PASS:-}"
+      IMAP_MAILBOX: "${IMAP_MAILBOX:-INBOX}"
+
+      # Usata da scripts/backup.sh per cifrare l'archivio.
+      BACKUP_PASSPHRASE: "${BACKUP_PASSPHRASE:-}"
 
 volumes:
   dbdata:

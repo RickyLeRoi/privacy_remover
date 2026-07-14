@@ -1,10 +1,10 @@
-import { Router } from "express";
 import { z } from "zod";
 import { nextId, nextIds } from "../lib/ids";
 import { prisma } from "../lib/prisma";
 import { packList, personOut } from "../lib/serialize";
+import { asyncRouter } from "../lib/asyncRouter";
 
-export const personsRouter = Router();
+export const personsRouter = asyncRouter();
 
 const AddressSchema = z.object({
   street:  z.string(),

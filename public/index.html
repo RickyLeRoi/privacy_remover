@@ -1819,6 +1819,10 @@ async function doLogin(){
       toast('ok','Password impostata');
     }
 
+    // Una sola richiesta per validare la password: loadAll() ne fa quattro, e contro il
+    // rate limit anti-bruteforce del server una password sbagliata varrebbe 4 tentativi.
+    await api('GET','/api/auth/verify');
+
     await loadAll();
     document.getElementById('conn-url').textContent = location.host;
     inp.value = ''; document.getElementById('inp-token2').value = '';

@@ -1,4 +1,3 @@
-import { Router } from "express";
 import { z } from "zod";
 import { addDays } from "date-fns";
 import fs from "fs";
@@ -12,8 +11,9 @@ import { generateMessage } from "../services/templateService";
 import { sendEmail } from "../services/emailService";
 import { queueDepth, queueStats } from "../services/sendQueueService";
 import { logErr } from "../index";
+import { asyncRouter } from "../lib/asyncRouter";
 
-export const casesRouter = Router();
+export const casesRouter = asyncRouter();
 
 const OpenSchema = z.object({ personId: z.string(), brokerId: z.string() });
 
@@ -24,6 +24,11 @@ casesRouter.post("/", async (req, res) => {
 
   const broker = await prisma.broker.findUnique({ where: { id: brokerId } });
   if (!broker) return res.status(404).json({ error: "Broker not found" });
+
+  // 20260715 RG - Senza questo controllo la create violava la foreign key e l'errore
+  // Prisma restava una rejection non gestita: la richiesta non riceveva MAI risposta.
+  const person = await prisma.person.findUnique({ where: { id: personId } });
+  if (!person) return res.status(404).json({ error: "Person not found" });
 
   const c = await prisma.removalCase.create({
     data: {
@@ -211,8 +216,10 @@ casesRouter.post("/:id/send", async (req, res) => {
         text: body,
       });
     } catch (err) {
+      // 20260715 RG - Il dettaglio dell'errore SMTP resta nei log del server: rimandarlo
+      // al client esporrebbe host, utenza e risposte del provider di posta.
       logErr("cases", `SMTP send failed for case ${c.id}`, err);
-      return res.status(502).json({ error: "Invio email fallito", detail: String(err) });
+      return res.status(502).json({ error: "Invio email fallito. Vedi i log del server." });
     }
   }
 

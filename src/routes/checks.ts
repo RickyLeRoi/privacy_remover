@@ -1,12 +1,12 @@
-import { Router } from "express";
 import { z } from "zod";
 import { addDays } from "date-fns";
 import { BrokerCategory, CaseStatus, PresenceResult } from "../lib/enums";
 import { nextId } from "../lib/ids";
 import { prisma } from "../lib/prisma";
 import { unpackList } from "../lib/serialize";
+import { asyncRouter } from "../lib/asyncRouter";
 
-export const checksRouter = Router();
+export const checksRouter = asyncRouter();
 
 // 20260701 RG - Costruisce l'URL di ricerca del broker sostituendo i segnaposto.
 // Se il broker non ha un template (la maggior parte), si ripiega sulla sua pagina
@@ -88,6 +88,10 @@ checksRouter.post("/", async (req, res) => {
 
   const broker = await prisma.broker.findUnique({ where: { id: brokerId } });
   if (!broker) return res.status(404).json({ error: "Broker not found" });
+
+  // Senza questo la create violerebbe la foreign key e uscirebbe un 500 opaco.
+  const person = await prisma.person.findUnique({ where: { id: personId } });
+  if (!person) return res.status(404).json({ error: "Person not found" });
 
   const existing = await prisma.presenceCheck.findUnique({
     where: { personId_brokerId: { personId, brokerId } },

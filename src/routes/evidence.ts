@@ -1,4 +1,3 @@
-import { Router } from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -7,8 +6,9 @@ import { z } from "zod";
 import { nextId } from "../lib/ids";
 import { prisma } from "../lib/prisma";
 import { EVIDENCE_DIR, ensureEvidenceDir, sha256File } from "../lib/evidenceStore";
+import { asyncRouter } from "../lib/asyncRouter";
 
-export const evidenceRouter = Router();
+export const evidenceRouter = asyncRouter();
 
 ensureEvidenceDir();
 

@@ -1,10 +1,10 @@
-import { Router } from "express";
 import { z } from "zod";
 import { nextId } from "../lib/ids";
 import { prisma } from "../lib/prisma";
 import { packList, brokerOut } from "../lib/serialize";
+import { asyncRouter } from "../lib/asyncRouter";
 
-export const brokersRouter = Router();
+export const brokersRouter = asyncRouter();
 
 // Conteggi per categoria: servono al triage, per non aprire pratiche alla cieca.
 brokersRouter.get("/categories", async (_req, res) => {

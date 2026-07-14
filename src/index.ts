@@ -1,6 +1,7 @@
 import "dotenv/config";
 import path from "path";
 import express, { Request, Response, NextFunction } from "express";
+import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { personsRouter } from "./routes/persons";
 import { brokersRouter } from "./routes/brokers";
@@ -29,6 +30,35 @@ log("startup", `IMAP_ENABLED=${process.env.IMAP_ENABLED ?? "not set"}  IMAP_HOST
 log("startup", `ADMIN_PASSWORD_HASH=${process.env.ADMIN_PASSWORD_HASH ? "set (override env, ha la precedenza sul DB)" : "non impostata (si usa la password scelta al primo avvio)"}`);
 
 const app = express();
+
+// 20260715 RG - 0 = nessun proxy davanti: X-Forwarded-For arriva dal client e non va
+// creduto, altrimenti il rate limit (e con esso la protezione dal brute force) si
+// aggira falsificando l'header. Alzare a 1 solo aggiungendo un reverse proxy.
+app.set("trust proxy", Number(process.env.TRUST_PROXY ?? 0));
+
+// 20260715 RG - La dashboard è inline e carica font e icone da due CDN: la CSP deve
+// elencarli o la pagina resta bianca. Quei CDN vedono il tuo IP a ogni apertura:
+// per un'app sulla privacy andrebbero serviti in locale.
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://api.fontshare.com"],
+        fontSrc: ["'self'", "https://cdn.fontshare.com", "data:"],
+        connectSrc: ["'self'"],
+        imgSrc: ["'self'", "data:"],
+        objectSrc: ["'none'"],
+        frameAncestors: ["'none'"],
+      },
+    },
+    // L'app gira anche in HTTP puro sulla LAN: HSTS bloccherebbe l'accesso.
+    hsts: false,
+    crossOriginEmbedderPolicy: false,
+  })
+);
+
 app.use(express.json());
 
 app.use((req: Request, _res: Response, next: NextFunction) => {
@@ -44,6 +74,18 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
+// 20260715 RG - Il token Bearer È la password ed è verificata su OGNI rotta /api: il
+// brute force non passa solo da /api/auth. Conta solo le richieste respinte, quindi
+// non intralcia l'uso normale.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  skipSuccessfulRequests: true,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Troppi tentativi di autenticazione falliti. Riprova più tardi." },
+});
+
 // 20260701 RG - Static prima dell'auth: serve per raggiungere la pagina di login,
 // ma significa anche che tutto ciò che sta in public/ è accessibile senza token.
 app.use(express.static(path.join(__dirname, "..", "public")));
@@ -56,9 +98,9 @@ app.get("/health", (_req, res) => {
 // 20260701 RG - Deve stare prima di authMiddleware: /status e /setup girano senza
 // password (al primo avvio non ne esiste ancora una). Le rotte distruttive dentro
 // authRouter applicano l'auth per conto proprio.
-app.use("/api/auth", authRouter);
+app.use("/api/auth", authLimiter, authRouter);
 
-app.use("/api", authMiddleware);
+app.use("/api", authLimiter, authMiddleware);
 app.use("/api/persons",  personsRouter);
 app.use("/api/brokers",  brokersRouter);
 app.use("/api/cases",    casesRouter);
@@ -67,6 +109,12 @@ app.use("/api/evidence", evidenceRouter);
 app.use("/api/export",   exportRouter);
 app.use("/api/imap",     imapRouter);
 app.use("/api/checks",   checksRouter);
+
+// 20260715 RG - Dopo i router e prima del catch-all: senza, una rotta /api inesistente
+// tornava 200 + index.html, e la SPA falliva con un errore di parsing invece di un 404.
+app.use("/api", (_req, res) => {
+  res.status(404).json({ error: "Endpoint non trovato" });
+});
 
 app.get("*", (_req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "index.html"));

@@ -1,4 +1,3 @@
-import { Router } from "express";
 import { z } from "zod";
 import {
   MIN_PASSWORD_LENGTH,
@@ -12,8 +11,9 @@ import { prisma } from "../lib/prisma";
 import { authMiddleware } from "../middleware/auth";
 import { seedBrokers } from "../seed";
 import { log } from "../index";
+import { asyncRouter } from "../lib/asyncRouter";
 
-export const authRouter = Router();
+export const authRouter = asyncRouter();
 
 const PasswordSchema = z.string().min(MIN_PASSWORD_LENGTH, `Minimo ${MIN_PASSWORD_LENGTH} caratteri`);
 
@@ -41,6 +41,14 @@ authRouter.post("/setup", async (req, res) => {
   await setPassword(parsed.data);
   log("auth", "SETUP: password impostata al primo avvio");
   res.status(201).json({ ok: true });
+});
+
+// 20260715 RG - Serve al login per validare la password con UNA sola richiesta. Prima
+// la dashboard la validava chiamando loadAll(), che ne spara quattro in parallelo:
+// contro il rate limit anti-bruteforce una password sbagliata valeva quattro tentativi,
+// e bastavano cinque errori di digitazione per bloccarsi fuori da soli per 15 minuti.
+authRouter.get("/verify", authMiddleware, (_req, res) => {
+  res.json({ ok: true });
 });
 
 authRouter.post("/change-password", authMiddleware, async (req, res) => {

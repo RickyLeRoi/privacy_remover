@@ -16,6 +16,3 @@ services:
 
 volumes:
   dbdata:
-
-# 20260701 RG - Per HTTPS su LAN/Tailscale serve un servizio caddy che faccia
-# reverse proxy su app:3000, togliendo il mapping 'ports' qui sopra. Vedi Caddyfile.
