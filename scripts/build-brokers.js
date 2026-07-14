@@ -32,7 +32,25 @@ function parseCsvLine(line) {
   return out;
 }
 
-const norm = (s) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+// 20260701 RG - Categoria: decide dove ha senso aprire una pratica e dove si può
+// verificare la presenza guardando. Gli adtech non hanno ricerca pubblica: su
+// quelli l'unica via è la richiesta di accesso (Art.15).
+const PEOPLE_SEARCH = /people ?search|whitepages|spokeo|radaris|intelius|beenverified|truthfinder|peekyou|pipl|mylife|peoplefinder|checkpeople|fastpeople|instantcheckmate|usphonebook|thatsthem|nuwber|clustrmaps|truepeople|searchpeoplefree|zabasearch|anywho|addresses\.com|pimeyes|truecaller/i;
+const CREDIT = /experian|equifax|transunion|lexisnexis|crif|cerved|schufa|creditreform|dun ?& ?bradstreet|d&b|innovis|corelogic|acxiom/i;
+const REGISTRY = /paginebianche|paginegialle|telefonbuch|pages ?blanches|herold|infobel|kompass|atoka/i;
+
+function categorize(name, fallback) {
+  if (PEOPLE_SEARCH.test(name)) return "people_search";
+  if (CREDIT.test(name)) return "credit";
+  if (REGISTRY.test(name)) return "registry";
+  return fallback;
+}
+
+// 20260701 RG - La deduplica deve ignorare la forma societaria: senza questo,
+// "CheckPeople" e "Checkpeople, LLC" restavano due broker distinti.
+const LEGAL_SUFFIX = /\b(llc|l\.l\.c|inc|incorporated|corp|corporation|co|company|ltd|limited|plc|gmbh|ag|sa|sas|sarl|bv|b\.v|nv|srl|s\.r\.l|spa|s\.p\.a|ab|oy|as|a\/s|pte|pty|holdings?|group)\b/g;
+const norm = (s) =>
+  (s || "").toLowerCase().replace(LEGAL_SUFFIX, "").replace(/[^a-z0-9]/g, "");
 // Alcuni nomi nelle fonti arrivano con punteggiatura iniziale (es. ": Tappx").
 const clean = (s) => (s || "").trim().replace(/\s+/g, " ").replace(/^[^\p{L}\p{N}]+/u, "").trim();
 
@@ -83,6 +101,7 @@ function fromCsv() {
       requiresFullName: g.names,
       requiresIdProof: false,
       acceptedDiscoveryKeys: keys,
+      category: categorize(g.name, "marketing"),
       notes: `Registro data broker USA (${[...g.srcs].join(", ")}).`,
     });
   }
@@ -123,6 +142,7 @@ async function fromGvl() {
       requiresFullName: false,
       requiresIdProof: false,
       acceptedDiscoveryKeys: ["email"],
+      category: categorize(name, "adtech"),
       notes: "Vendor IAB Europe TCF (tratta dati di utenti UE). Nessuna email pubblicata: richiesta da inoltrare tramite la pagina privacy.",
     });
   }

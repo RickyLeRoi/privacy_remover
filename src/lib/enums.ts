@@ -17,7 +17,14 @@ export type ContactMethod = (typeof ContactMethod)[keyof typeof ContactMethod];
 
 export const CaseStatus = {
   NOT_STARTED: "NOT_STARTED",
+  // 20260701 RG - QUEUED: in attesa che il worker la spedisca. Lo stato sta a DB e
+  // non in memoria, così una coda di centinaia di invii sopravvive al riavvio.
+  QUEUED: "QUEUED",
   SENT: "SENT",
+  // Richiesta di accesso (GDPR Art.15) inviata: si aspetta di sapere SE hanno dati.
+  ACCESS_SENT: "ACCESS_SENT",
+  // Il broker ha risposto che non tratta dati di questa persona: nulla da cancellare.
+  NO_DATA: "NO_DATA",
   AWAITING_RESPONSE: "AWAITING_RESPONSE",
   CONFIRMED: "CONFIRMED",
   FAILED: "FAILED",
@@ -25,6 +32,23 @@ export const CaseStatus = {
   CLOSED: "CLOSED",
 } as const;
 export type CaseStatus = (typeof CaseStatus)[keyof typeof CaseStatus];
+
+export const BrokerCategory = {
+  people_search: "people_search",
+  credit: "credit",
+  registry: "registry",
+  adtech: "adtech",
+  marketing: "marketing",
+  other: "other",
+} as const;
+export type BrokerCategory = (typeof BrokerCategory)[keyof typeof BrokerCategory];
+
+export const PresenceResult = {
+  found: "found",
+  not_found: "not_found",
+  unknown: "unknown",
+} as const;
+export type PresenceResult = (typeof PresenceResult)[keyof typeof PresenceResult];
 
 export const Channel = {
   email: "email",

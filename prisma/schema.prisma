@@ -41,6 +41,7 @@ model Person {
   notes     String?
 
   cases     RemovalCase[]
+  checks    PresenceCheck[]
 }
 
 model Address {
@@ -62,6 +63,14 @@ model Broker {
   contactMethod         String
   contactTarget         String
   portalUrl             String?
+  // 20260701 RG - BrokerCategory: serve a non aprire 1900 pratiche alla cieca. I
+  // people_search sono gli unici su cui si può verificare la presenza guardando;
+  // gli adtech non espongono nessuna ricerca, quindi lì si passa dall'Art.15.
+  category              String   @default("other")
+  // Ricerca pubblica del broker, con segnaposto {email} {phone} {name} {city}.
+  // Nullo quando il broker non ha una ricerca o non ne conosciamo il formato:
+  // in quel caso si apre portalUrl e la ricerca la fa l'utente.
+  searchUrlTemplate     String?
   slaInDays             Int      @default(30)
   requiresFullName      Boolean  @default(false)
   requiresIdProof       Boolean  @default(false)
@@ -72,6 +81,7 @@ model Broker {
   updatedAt             DateTime @updatedAt
 
   cases                 RemovalCase[]
+  checks                PresenceCheck[]
 }
 
 model RemovalCase {
@@ -81,6 +91,9 @@ model RemovalCase {
   brokerId    String
   broker      Broker   @relation(fields: [brokerId], references: [id])
   status      String   @default("NOT_STARTED")
+  // 20260701 RG - "erasure" (Art.17) oppure "access" (Art.15). Decide quale testo
+  // viene spedito quando la pratica esce dalla coda.
+  requestKind String   @default("erasure")
   openedAt    DateTime @default(now())
   dueAt       DateTime
   closedAt    DateTime?
@@ -118,6 +131,23 @@ model Evidence {
   checksum  String
   encrypted Boolean     @default(false)
   createdAt DateTime    @default(now())
+}
+
+// 20260701 RG - Esito della verifica manuale "questa persona compare su questo
+// broker?". La guarda l'utente con i propri occhi: niente scraping, che i
+// people-search vietano nei termini e bloccano con CAPTCHA. La pratica si apre
+// solo dove result = "found".
+model PresenceCheck {
+  id        String   @id
+  personId  String
+  person    Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  brokerId  String
+  broker    Broker   @relation(fields: [brokerId], references: [id], onDelete: Cascade)
+  result    String   // found | not_found | unknown
+  checkedAt DateTime @default(now())
+  notes     String?
+
+  @@unique([personId, brokerId])
 }
 
 model VerificationTask {

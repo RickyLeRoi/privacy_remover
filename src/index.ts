@@ -9,9 +9,11 @@ import { messagesRouter } from "./routes/messages";
 import { evidenceRouter } from "./routes/evidence";
 import { exportRouter } from "./routes/export";
 import { imapRouter } from "./routes/imap";
+import { checksRouter } from "./routes/checks";
 import { authRouter } from "./routes/auth";
 import { authMiddleware } from "./middleware/auth";
 import { initScheduler } from "./services/schedulerService";
+import { startSendWorker } from "./services/sendQueueService";
 
 function ts() { return new Date().toISOString(); }
 export function log(tag: string, msg: string) { console.log(`${ts()} [${tag}] ${msg}`); }
@@ -64,6 +66,7 @@ app.use("/api/messages", messagesRouter);
 app.use("/api/evidence", evidenceRouter);
 app.use("/api/export",   exportRouter);
 app.use("/api/imap",     imapRouter);
+app.use("/api/checks",   checksRouter);
 
 app.get("*", (_req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "index.html"));
@@ -81,6 +84,7 @@ const PORT = Number(process.env.PORT ?? 3000);
 app.listen(PORT, "0.0.0.0", async () => {
   log("startup", `Privacy Remover listening on http://0.0.0.0:${PORT}`);
   await initScheduler();
+  startSendWorker();
 });
 
 process.on("unhandledRejection", (reason) => {

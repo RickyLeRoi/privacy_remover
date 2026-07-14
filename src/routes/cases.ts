@@ -1,12 +1,16 @@
 import { Router } from "express";
 import { z } from "zod";
 import { addDays } from "date-fns";
-import { CaseStatus, VerificationResult } from "../lib/enums";
+import fs from "fs";
+import path from "path";
+import { CaseStatus, PresenceResult, VerificationResult } from "../lib/enums";
+import { EVIDENCE_DIR } from "../lib/evidenceStore";
 import { nextId, nextIds } from "../lib/ids";
 import { prisma } from "../lib/prisma";
 import { packList } from "../lib/serialize";
 import { generateMessage } from "../services/templateService";
 import { sendEmail } from "../services/emailService";
+import { queueDepth, queueStats } from "../services/sendQueueService";
 import { logErr } from "../index";
 
 export const casesRouter = Router();
@@ -41,12 +45,16 @@ const BulkSchema = z.object({
   personId: z.string(),
   contactMethod: z.enum(["email", "form", "api"]).optional(),
   country: z.string().optional(),
+  categories: z.array(z.string()).optional(),
+  // Apre solo dove la verifica manuale ha dato "trovato".
+  onlyFound: z.boolean().optional(),
+  requestKind: z.enum(["erasure", "access"]).optional(),
 });
 
 casesRouter.post("/bulk", async (req, res) => {
   const parsed = BulkSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json(parsed.error);
-  const { personId, contactMethod, country } = parsed.data;
+  const { personId, contactMethod, country, categories, onlyFound, requestKind } = parsed.data;
 
   const person = await prisma.person.findUnique({ where: { id: personId } });
   if (!person) return res.status(404).json({ error: "Person not found" });
@@ -56,16 +64,28 @@ casesRouter.post("/bulk", async (req, res) => {
       active: true,
       ...(contactMethod ? { contactMethod } : {}),
       ...(country ? { country } : {}),
+      ...(categories?.length ? { category: { in: categories } } : {}),
     },
     select: { id: true, slaInDays: true },
   });
+
+  let candidates = brokers;
+  if (onlyFound) {
+    const found = new Set(
+      (await prisma.presenceCheck.findMany({
+        where: { personId, result: PresenceResult.found },
+        select: { brokerId: true },
+      })).map((c) => c.brokerId)
+    );
+    candidates = brokers.filter((b) => found.has(b.id));
+  }
 
   const already = new Set(
     (await prisma.removalCase.findMany({ where: { personId }, select: { brokerId: true } }))
       .map((c) => c.brokerId)
   );
 
-  const toOpen = brokers.filter((b) => !already.has(b.id));
+  const toOpen = candidates.filter((b) => !already.has(b.id));
   const now = new Date();
   const ids = await nextIds("case", toOpen.length);
 
@@ -77,6 +97,7 @@ casesRouter.post("/bulk", async (req, res) => {
         personId,
         brokerId: b.id,
         status: CaseStatus.NOT_STARTED,
+        requestKind: requestKind ?? "erasure",
         dueAt: addDays(now, b.slaInDays),
       })),
     });
@@ -84,9 +105,76 @@ casesRouter.post("/bulk", async (req, res) => {
 
   res.status(201).json({
     created: toOpen.length,
-    skipped: brokers.length - toOpen.length,
-    total: brokers.length,
+    skipped: candidates.length - toOpen.length,
+    total: candidates.length,
   });
+});
+
+// 20260701 RG - Invio massivo: NON spedisce qui dentro. Mette le pratiche email in
+// coda (il worker le manda una ogni SEND_INTERVAL_MS) e chiude subito la richiesta.
+// Una risposta HTTP non può restare aperta le ore che servono a 700 invii.
+const IdsSchema = z.object({ caseIds: z.array(z.string()).min(1) });
+
+casesRouter.post("/bulk-send", async (req, res) => {
+  const parsed = IdsSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json(parsed.error);
+
+  const cases = await prisma.removalCase.findMany({
+    where: { id: { in: parsed.data.caseIds } },
+    include: { broker: { select: { contactMethod: true } } },
+  });
+
+  const sendable = cases.filter((c) =>
+    c.status === CaseStatus.NOT_STARTED || c.status === CaseStatus.FAILED
+  );
+  const email = sendable.filter((c) => c.broker.contactMethod === "email");
+  const manual = sendable.filter((c) => c.broker.contactMethod !== "email");
+
+  if (email.length) {
+    await prisma.removalCase.updateMany({
+      where: { id: { in: email.map((c) => c.id) } },
+      data: { status: CaseStatus.QUEUED },
+    });
+  }
+
+  res.status(202).json({
+    queued: email.length,
+    // I broker senza email non si possono spedire: vanno compilati a mano sul loro form.
+    manualOnly: manual.length,
+    skipped: cases.length - sendable.length,
+    queueDepth: await queueDepth(),
+  });
+});
+
+casesRouter.post("/bulk-delete", async (req, res) => {
+  const parsed = IdsSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json(parsed.error);
+  const caseIds = parsed.data.caseIds;
+
+  // 20260701 RG - I file delle prove vanno tolti dal disco: cancellare solo la riga
+  // lascerebbe il volume pieno di allegati orfani.
+  const evidence = await prisma.evidence.findMany({
+    where: { caseId: { in: caseIds } },
+    select: { filePath: true },
+  });
+  for (const e of evidence) {
+    const abs = path.join(EVIDENCE_DIR, e.filePath);
+    if (fs.existsSync(abs)) {
+      try { fs.unlinkSync(abs); } catch { /* già rimosso */ }
+    }
+  }
+
+  // Ordine imposto dalle foreign key.
+  await prisma.verificationTask.deleteMany({ where: { caseId: { in: caseIds } } });
+  await prisma.evidence.deleteMany({ where: { caseId: { in: caseIds } } });
+  await prisma.outboundMessage.deleteMany({ where: { caseId: { in: caseIds } } });
+  const del = await prisma.removalCase.deleteMany({ where: { id: { in: caseIds } } });
+
+  res.json({ deleted: del.count });
+});
+
+casesRouter.get("/queue", async (_req, res) => {
+  res.json({ ...queueStats(), depth: await queueDepth() });
 });
 
 casesRouter.get("/", async (req, res) => {
@@ -108,7 +196,8 @@ casesRouter.post("/:id/send", async (req, res) => {
   });
   if (!c) return res.status(404).json({ error: "Not found" });
 
-  const { subject, body, discoveryKeysUsed } = generateMessage(c.person, c.broker);
+  const kind = c.requestKind === "access" ? "access" : "erasure";
+  const { subject, body, discoveryKeysUsed, templateKey } = generateMessage(c.person, c.broker, kind);
 
   // 20260701 RG - Express 4 non intercetta le rejection async: senza questo catch
   // un errore SMTP lascerebbe la richiesta appesa. Si esce prima di creare il
@@ -132,7 +221,7 @@ casesRouter.post("/:id/send", async (req, res) => {
       id: await nextId("message"),
       caseId: c.id,
       channel: c.broker.contactMethod === "email" ? "email" : "form_manual",
-      templateKey: `${c.broker.legalBasis}_erasure_v1`,
+      templateKey,
       discoveryKeysUsed: packList(discoveryKeysUsed),
       fullNameIncluded: false,
       sentAt: c.broker.contactMethod === "email" ? new Date() : null,
@@ -143,7 +232,7 @@ casesRouter.post("/:id/send", async (req, res) => {
 
   await prisma.removalCase.update({
     where: { id: c.id },
-    data: { status: CaseStatus.SENT },
+    data: { status: kind === "access" ? CaseStatus.ACCESS_SENT : CaseStatus.SENT },
   });
 
   res.json({ caseId: c.id, messageId: msg.id, channel: msg.channel });

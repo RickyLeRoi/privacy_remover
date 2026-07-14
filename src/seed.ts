@@ -7,7 +7,7 @@ import brokerCatalog from "./data/brokers.json";
 // 20260701 RG - Alzare questa versione quando cambia src/data/brokers.json: le
 // installazioni esistenti hanno già dei broker a DB, quindi senza un confronto di
 // versione il seed verrebbe saltato e non riceverebbero mai i nuovi.
-export const BROKERS_VERSION = "2026-07-14";
+export const BROKERS_VERSION = "2026-07-14b";
 const VERSION_KEY = "brokers_seed_version";
 
 type SeedBroker = {
@@ -17,6 +17,8 @@ type SeedBroker = {
   contactMethod: string;
   contactTarget: string;
   portalUrl?: string;
+  category: string;
+  searchUrlTemplate?: string;
   slaInDays: number;
   requiresFullName: boolean;
   requiresIdProof: boolean;
@@ -47,6 +49,8 @@ export async function seedBrokers(): Promise<number> {
         contactMethod: b.contactMethod,
         contactTarget: b.contactTarget,
         portalUrl: b.portalUrl ?? null,
+        category: b.category,
+        searchUrlTemplate: b.searchUrlTemplate ?? null,
         slaInDays: b.slaInDays,
         requiresFullName: b.requiresFullName,
         requiresIdProof: b.requiresIdProof,
@@ -56,8 +60,43 @@ export async function seedBrokers(): Promise<number> {
     });
   }
 
+  // 20260701 RG - I broker già a DB da una versione precedente non passano dalla
+  // createMany qui sopra: senza questo aggiornamento resterebbero con la categoria
+  // di default ("other") e il triage non funzionerebbe su un'installazione esistente.
+  await backfillExisting(existing);
+
   await setSetting(VERSION_KEY, BROKERS_VERSION);
   return missing.length;
+}
+
+async function backfillExisting(existingNames: Set<string>): Promise<void> {
+  const present = brokers.filter((b) => existingNames.has(b.name));
+  if (present.length === 0) return;
+
+  const byCategory = new Map<string, string[]>();
+  for (const b of present) {
+    const list = byCategory.get(b.category) ?? [];
+    list.push(b.name);
+    byCategory.set(b.category, list);
+  }
+
+  // SQLite ha un tetto ai parametri di una query (~999): i nomi vanno passati a blocchi.
+  const CHUNK = 400;
+  for (const [category, names] of byCategory) {
+    for (let i = 0; i < names.length; i += CHUNK) {
+      await prisma.broker.updateMany({
+        where: { name: { in: names.slice(i, i + CHUNK) } },
+        data: { category },
+      });
+    }
+  }
+
+  for (const b of present.filter((x) => x.searchUrlTemplate)) {
+    await prisma.broker.updateMany({
+      where: { name: b.name },
+      data: { searchUrlTemplate: b.searchUrlTemplate },
+    });
+  }
 }
 
 async function main() {

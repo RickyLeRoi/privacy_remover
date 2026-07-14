@@ -2,15 +2,23 @@ import { Address, Broker, Person } from "@prisma/client";
 import { DiscoveryKey, LegalBasis } from "../lib/enums";
 import { unpackList } from "../lib/serialize";
 import { gdprErasureTemplate } from "../templates/gdprErasure";
+import { gdprAccessTemplate } from "../templates/gdprAccess";
 import { ccpaOptOutTemplate } from "../templates/ccpaOptOut";
 import { genericOptOutTemplate } from "../templates/genericOptOut";
 
 type PersonWithAddresses = Person & { addresses: Address[] };
 
+// 20260701 RG - "access" = GDPR Art.15 ("trattate miei dati?"), "erasure" = Art.17
+// ("cancellateli"). L'accesso serve sui broker che non espongono nessuna ricerca
+// pubblica: è l'unico modo legale di sapere se ti hanno, prima di chiedere la
+// cancellazione.
+export type RequestKind = "access" | "erasure";
+
 export function generateMessage(
   person: PersonWithAddresses,
-  broker: Broker
-): { subject: string; body: string; discoveryKeysUsed: DiscoveryKey[] } {
+  broker: Broker,
+  kind: RequestKind = "erasure"
+): { subject: string; body: string; discoveryKeysUsed: DiscoveryKey[]; templateKey: string } {
   const acceptedKeys = unpackList(broker.acceptedDiscoveryKeys);
   const emails = unpackList(person.emails);
   const phones = unpackList(person.phones);
@@ -40,6 +48,11 @@ export function generateMessage(
 
   const identityBlock = identityLines.join("\n");
 
+  if (kind === "access") {
+    const { subject, body } = gdprAccessTemplate(broker.name, identityBlock);
+    return { subject, body, discoveryKeysUsed: keysUsed, templateKey: "gdpr_access_v1" };
+  }
+
   const { subject, body } =
     broker.legalBasis === LegalBasis.gdpr
       ? gdprErasureTemplate(broker.name, identityBlock)
@@ -47,5 +60,10 @@ export function generateMessage(
       ? ccpaOptOutTemplate(broker.name, identityBlock)
       : genericOptOutTemplate(broker.name, identityBlock);
 
-  return { subject, body, discoveryKeysUsed: keysUsed };
+  return {
+    subject,
+    body,
+    discoveryKeysUsed: keysUsed,
+    templateKey: `${broker.legalBasis}_erasure_v1`,
+  };
 }

@@ -30,11 +30,25 @@ const DENIED_PATTERNS = [
   /non (?:possiamo|è possibile)/i,
 ];
 
+// La risposta tipica a una richiesta di accesso (Art.15) quando il broker non ti ha:
+// niente da cancellare, la pratica si chiude come NO_DATA.
+const NO_DATA_PATTERNS = [
+  /do not (?:hold|have|process|possess).{0,40}(?:personal )?(?:data|information)/i,
+  /no (?:personal )?(?:data|information|records?).{0,30}(?:found|held|on file|about you)/i,
+  /not (?:hold|have).{0,30}records?/i,
+  /non (?:trattiamo|deteniamo|possediamo|disponiamo).{0,40}dat/i,
+  /nessun dato/i,
+  /no match(?:es)? (?:were )?found/i,
+];
+
 // 20260701 RG - La classificazione è solo euristica su keyword: "removed" compare
 // anche in frasi negative ("cannot be removed"), quindi può chiudere una pratica
 // che invece è stata rifiutata. Verificare sempre a mano prima di fidarsi.
-function classify(subject: string, body: string | false): "confirmed" | "denied" | "unknown" {
+// L'ordine conta: "non trattiamo dati" va riconosciuto PRIMA di "confirmed",
+// altrimenti un "we do not hold your data" verrebbe letto come una conferma.
+function classify(subject: string, body: string | false): "no_data" | "confirmed" | "denied" | "unknown" {
   const text = `${subject} ${body}`;
+  if (NO_DATA_PATTERNS.some((r) => r.test(text))) return "no_data";
   if (CONFIRMED_PATTERNS.some((r) => r.test(text))) return "confirmed";
   if (DENIED_PATTERNS.some((r) => r.test(text))) return "denied";
   return "unknown";
@@ -46,7 +60,7 @@ function classify(subject: string, body: string | false): "confirmed" | "denied"
 async function matchCase(fromAddress: string) {
   const cases = await prisma.removalCase.findMany({
     where: {
-      status: { in: [CaseStatus.SENT, CaseStatus.AWAITING_RESPONSE] },
+      status: { in: [CaseStatus.SENT, CaseStatus.ACCESS_SENT, CaseStatus.AWAITING_RESPONSE] },
     },
     include: {
       broker: { select: { contactTarget: true, contactMethod: true } },
@@ -91,7 +105,13 @@ async function processMessage(parsed: Awaited<ReturnType<typeof simpleParser>>) 
       },
     });
 
-    if (verdict === "confirmed") {
+    if (verdict === "no_data") {
+      await prisma.removalCase.update({
+        where: { id: c.id },
+        data: { status: CaseStatus.NO_DATA, closedAt: new Date() },
+      });
+      log("imap", `case ${c.id} → NO_DATA (il broker dichiara di non avere dati)`);
+    } else if (verdict === "confirmed") {
       await prisma.removalCase.update({
         where: { id: c.id },
         data: {

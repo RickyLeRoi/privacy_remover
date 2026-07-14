@@ -13,6 +13,7 @@ const CONFIG = {
   message:  { prefix: "M", pad: 6 },
   evidence: { prefix: "E", pad: 5 },
   task:     { prefix: "T", pad: 6 },
+  check:    { prefix: "V", pad: 6 },
 } as const;
 
 export type IdEntity = keyof typeof CONFIG;

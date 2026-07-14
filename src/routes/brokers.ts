@@ -6,6 +6,23 @@ import { packList, brokerOut } from "../lib/serialize";
 
 export const brokersRouter = Router();
 
+// Conteggi per categoria: servono al triage, per non aprire pratiche alla cieca.
+brokersRouter.get("/categories", async (_req, res) => {
+  const rows = await prisma.broker.groupBy({
+    by: ["category", "contactMethod"],
+    where: { active: true },
+    _count: { _all: true },
+  });
+  const out: Record<string, { total: number; email: number; form: number }> = {};
+  for (const r of rows) {
+    const e = (out[r.category] ??= { total: 0, email: 0, form: 0 });
+    e.total += r._count._all;
+    if (r.contactMethod === "email") e.email += r._count._all;
+    else e.form += r._count._all;
+  }
+  res.json(out);
+});
+
 brokersRouter.get("/", async (_req, res) => {
   const brokers = await prisma.broker.findMany({
     where: { active: true },
@@ -31,6 +48,8 @@ const BrokerSchema = z.object({
   requiresFullName:       z.boolean().default(false),
   requiresIdProof:        z.boolean().default(false),
   acceptedDiscoveryKeys:  z.array(z.enum(["email", "phone", "address"])).min(1),
+  category:               z.enum(["people_search","credit","registry","adtech","marketing","other"]).default("other"),
+  searchUrlTemplate:      z.string().optional(),
   active:                 z.boolean().default(true),
   notes:                  z.string().optional(),
 });

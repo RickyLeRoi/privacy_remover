@@ -64,8 +64,10 @@ textarea{resize:vertical;min-height:90px}
 /* ── LAYOUT ──────────────────────────────────────────── */
 /* 20260701 RG - La riga "auto" ospita il banner IMAP: quando il banner è nascosto
    (display:none) la riga collassa a zero e il layout resta identico a prima. */
-.shell{display:grid;grid-template-columns:var(--sidebar-w) 1fr;grid-template-rows:var(--header-h) auto 1fr;height:100dvh}
+.shell{display:grid;grid-template-columns:var(--sidebar-w) 1fr;grid-template-rows:var(--header-h) auto auto 1fr;height:100dvh}
 .imap-banner{grid-column:2;display:flex;align-items:center;gap:var(--sp3);padding:var(--sp3) var(--sp6);background:var(--info-hl);border-bottom:1px solid var(--border);font-size:var(--text-sm)}
+.bulkbar{display:flex;align-items:center;gap:var(--sp3);padding:var(--sp3) var(--sp4);margin-bottom:var(--sp4);background:var(--pri-hl);border:1px solid var(--pri);border-radius:var(--r-md);font-size:var(--text-sm)}
+tr.row-sel{background:var(--pri-hl)}
 /* ── SIDEBAR ──────────────────────────────────────────── */
 .sidebar{grid-row:1/-1;background:var(--surf);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;overscroll-behavior:contain;padding:var(--sp4) 0}
 .brand{display:flex;align-items:center;gap:var(--sp3);padding:var(--sp3) var(--sp5) var(--sp6);border-bottom:1px solid var(--border)}
@@ -272,6 +274,10 @@ td{padding:var(--sp3) var(--sp4);vertical-align:middle;font-variant-numeric:tabu
         Casi
       </button>
       <span class="nav-section">Attività</span>
+      <button class="nav-item" data-route="presenza">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        Verifica presenza
+      </button>
       <button class="nav-item" data-route="verifiche">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
         Verifiche
@@ -304,6 +310,10 @@ td{padding:var(--sp3) var(--sp4);vertical-align:middle;font-variant-numeric:tabu
     <div id="imap-banner-text" style="flex:1;min-width:0"></div>
     <button class="btn btn-ghost btn-sm" id="imap-banner-hide" title="Nascondi (riattivabile dalle impostazioni)">Nascondi</button>
   </div>
+  <div id="queue-banner" class="imap-banner hidden" style="background:var(--pri-hl)">
+    <span class="spinner"></span>
+    <div id="queue-banner-text" style="flex:1;min-width:0"></div>
+  </div>
   <!-- main -->
   <main class="main" id="main-content" role="main"></main>
 </div>
@@ -324,6 +334,9 @@ const S = {
   demo: false,
   needsSetup: false,
   imap: null,
+  queue: null,
+  selection: new Set(),
+  checks: [],
   persons: [],
   brokers: [],
   cases: [],
@@ -406,6 +419,7 @@ async function loadAll() {
   S.cases   = cases   || [];
   S.tasks   = tasks   || [];
   loadImapStatus();
+  refreshQueue();
 }
 
 // Stato IMAP: una riga sola, in un banner in alto che l'utente può nascondere.
@@ -448,6 +462,37 @@ async function loadImapStatus() {
   } catch(_) { /* non critico */ }
 }
 
+// ── Coda di invio ─────────────────────────────────────────────
+// Le email partono una alla volta a intervalli: una coda lunga dura ore, quindi
+// serve un indicatore sempre visibile e un aggiornamento periodico.
+function renderQueueBanner(){
+  const el = document.getElementById('queue-banner');
+  if (!el) return;
+  const q = S.queue;
+  if (!q || q.depth === 0) { el.classList.add('hidden'); return; }
+  const mins = Math.round((q.depth * q.intervalMs) / 60000);
+  document.getElementById('queue-banner-text').innerHTML =
+    `<strong>Invio in corso:</strong> ${q.depth} email in coda` +
+    (q.sent ? `, ${q.sent} inviate` : '') +
+    (q.failed ? `, <span style="color:var(--err)">${q.failed} fallite</span>` : '') +
+    ` — una ogni ${Math.round(q.intervalMs/1000)}s, circa ${mins} minut${mins===1?'o':'i'} rimanenti.`;
+  el.classList.remove('hidden');
+}
+
+async function refreshQueue(){
+  if (S.demo || !S.token) return;
+  try {
+    S.queue = await api('GET','/api/cases/queue');
+    renderQueueBanner();
+  } catch(_) { /* non critico */ }
+}
+
+setInterval(() => {
+  if (S.token && !S.demo && S.queue && S.queue.depth > 0) {
+    refreshQueue().then(() => { if (location.hash.slice(1)==='casi') { loadAll().then(renderCasi).catch(()=>{}); } });
+  }
+}, 15000);
+
 // ──────────────────────────────────────────────────────────────
 // HELPERS
 // ──────────────────────────────────────────────────────────────
@@ -458,13 +503,29 @@ function brokerById(id){ return S.brokers.find(b=>b.id===id)||{name:'?'}; }
 
 const STATUS_META = {
   NOT_STARTED: {label:'Non avviato',cls:'chip-muted'},
+  QUEUED:      {label:'In coda',cls:'chip-info'},
   SENT:        {label:'Inviata',cls:'chip-warn'},
+  ACCESS_SENT: {label:'Accesso richiesto',cls:'chip-info'},
   AWAITING_RESPONSE:{label:'Risposta attesa',cls:'chip-info'},
   CONFIRMED:   {label:'Rimossa',cls:'chip-ok'},
+  NO_DATA:     {label:'Nessun dato',cls:'chip-ok'},
   FAILED:      {label:'Fallita',cls:'chip-err'},
   NEEDS_RECHECK:{label:'Verifica',cls:'chip-err'},
   CLOSED:      {label:'Chiusa',cls:'chip-muted'},
 };
+
+const CATEGORY_LABEL = {
+  people_search: 'People-search',
+  credit:        'Credito / identità',
+  registry:      'Registri e elenchi',
+  marketing:     'Marketing / aggregatori',
+  adtech:        'Ad-tech (pubblicità)',
+  other:         'Altro',
+};
+
+// Solo le pratiche non ancora partite (o fallite) si possono inviare o eliminare
+// in blocco: selezionare una già inviata non avrebbe senso.
+const SELECTABLE_STATUSES = ['NOT_STARTED','FAILED','NEEDS_RECHECK'];
 function chipStatus(s){
   const m = STATUS_META[s] || {label:s,cls:'chip-muted'};
   return `<span class="chip ${m.cls}">${m.label}</span>`;
@@ -511,14 +572,14 @@ document.addEventListener('keydown', (e) => {
 // ──────────────────────────────────────────────────────────────
 // ROUTER
 // ──────────────────────────────────────────────────────────────
-const TITLES = { dashboard:'Dashboard', persone:'Persone', broker:'Broker', casi:'Casi', verifiche:'Verifiche' };
+const TITLES = { dashboard:'Dashboard', persone:'Persone', broker:'Broker', casi:'Casi', presenza:'Verifica presenza', verifiche:'Verifiche' };
 
 function navigate(route) {
   document.querySelectorAll('.nav-item').forEach(el => {
     el.classList.toggle('active', el.dataset.route === route);
   });
   document.getElementById('page-title').textContent = TITLES[route] || route;
-  const views = { dashboard: renderDashboard, persone: renderPersone, broker: renderBroker, casi: renderCasi, verifiche: renderVerifiche };
+  const views = { dashboard: renderDashboard, persone: renderPersone, broker: renderBroker, casi: renderCasi, presenza: renderPresenza, verifiche: renderVerifiche };
   const fn = views[route];
   if(fn) { document.getElementById('main-content').innerHTML = ''; fn(); }
 }
@@ -650,13 +711,13 @@ function showBulkModal(personId) {
   if(S.demo){ toast('warn','Non disponibile in modalità demo'); return; }
   const p = personById(personId);
   const open = new Set(S.cases.filter(c=>c.personId===personId).map(c=>c.brokerId));
-  const withEmail = S.brokers.filter(b=>b.contactMethod==='email');
-  const nAll   = S.brokers.filter(b=>!open.has(b.id)).length;
-  const nEmail = withEmail.filter(b=>!open.has(b.id)).length;
+
+  const count = (cat) => S.brokers.filter(b=>(b.category||'other')===cat && !open.has(b.id)).length;
+  const cats = Object.keys(CATEGORY_LABEL).filter(c=>count(c)>0);
 
   openModal(`<div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="modal-head">
-      <div class="modal-title" id="modal-title">Cerca ${esc(p.label)} su tutti i broker</div>
+      <div class="modal-title" id="modal-title">Apri pratiche per ${esc(p.label)}</div>
       <button class="modal-close" aria-label="Chiudi">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
@@ -664,16 +725,43 @@ function showBulkModal(personId) {
     <div class="modal-body">
       <div class="alert alert-warn">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:2px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        <div><strong>Non viene inviata nessuna email.</strong> Le pratiche vengono solo aperte, in stato «Non avviato». L'invio resta una tua scelta, una alla volta: spedire centinaia di email dalla stessa casella porta al blocco del provider.</div>
+        <div><strong>Qui non viene inviata nessuna email.</strong> Le pratiche vengono solo aperte. L'invio si fa dalla scheda Casi, selezionandole: partono in coda, una alla volta.</div>
       </div>
+
       <div class="field">
-        <label for="bulk-scope">Su quali broker</label>
-        <select id="bulk-scope">
-          <option value="all">Tutti i broker (${nAll} nuove pratiche)</option>
-          <option value="email">Solo quelli contattabili via email (${nEmail} nuove pratiche)</option>
-        </select>
-        <div class="field-hint">I broker su cui ${esc(p.label)} ha già una pratica vengono saltati.</div>
+        <label>Categorie</label>
+        ${cats.map(c=>`<label style="display:flex;align-items:center;gap:var(--sp2);font-weight:400;cursor:pointer">
+          <input type="checkbox" class="bulk-cat" value="${c}" style="width:auto" ${c==='people_search'?'checked':''}/>
+          ${CATEGORY_LABEL[c]} <span style="color:var(--muted)">(${count(c)})</span>
+        </label>`).join('')}
+        <div class="field-hint">Gli ad-tech non pubblicano profili e non hanno una ricerca: su di loro conviene la <strong>richiesta di accesso</strong> (Art.15), non la cancellazione alla cieca.</div>
       </div>
+
+      <div class="field">
+        <label for="bulk-kind">Tipo di richiesta</label>
+        <select id="bulk-kind">
+          <option value="erasure">Cancellazione — GDPR Art. 17</option>
+          <option value="access">Richiesta di accesso — GDPR Art. 15 («trattate miei dati?»)</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:var(--sp2);font-weight:400;cursor:pointer">
+          <input type="checkbox" id="bulk-onlyfound" style="width:auto"/>
+          Solo dove la verifica ha dato «trovato»
+        </label>
+        <div class="field-hint">Usa gli esiti registrati nella scheda Verifica.</div>
+      </div>
+
+      <div class="field">
+        <label for="bulk-channel">Canale</label>
+        <select id="bulk-channel">
+          <option value="">Tutti</option>
+          <option value="email">Solo contattabili via email</option>
+          <option value="form">Solo form (da compilare a mano)</option>
+        </select>
+      </div>
+
       <button class="btn btn-primary" id="bulk-go" style="width:100%">
         <span id="bulk-spin" class="spinner hidden"></span><span id="bulk-txt">Apri le pratiche</span>
       </button>
@@ -681,14 +769,18 @@ function showBulkModal(personId) {
   </div>`);
 
   document.getElementById('bulk-go').addEventListener('click', async () => {
-    const scope = document.getElementById('bulk-scope').value;
+    const categories = [...document.querySelectorAll('.bulk-cat:checked')].map(x=>x.value);
+    if(!categories.length){ toast('err','Seleziona almeno una categoria'); return; }
+    const channel = document.getElementById('bulk-channel').value;
     const btn = document.getElementById('bulk-go');
     btn.disabled = true;
     document.getElementById('bulk-spin').classList.remove('hidden');
     document.getElementById('bulk-txt').textContent = 'Apertura in corso…';
     try{
-      const body = { personId };
-      if(scope==='email') body.contactMethod = 'email';
+      const body = { personId, categories,
+        requestKind: document.getElementById('bulk-kind').value,
+        onlyFound: document.getElementById('bulk-onlyfound').checked };
+      if(channel) body.contactMethod = channel;
       const r = await api('POST','/api/cases/bulk', body);
       await loadAll();
       closeModal();
@@ -809,7 +901,141 @@ function renderBroker() {
 // ──────────────────────────────────────────────────────────────
 // VIEW: CASI
 // ──────────────────────────────────────────────────────────────
-let filterStatus = '', filterPerson = '', filterNext30 = false;
+let filterStatus = '', filterPerson = '', filterNext30 = false, filterCategory = '', filterChannel = '';
+
+// I filtri decidono su cosa agisce "seleziona tutti": è il modo per fare
+// "categoria X + contattabili via email -> seleziona tutti -> invia".
+function filteredCases(){
+  let cases = S.cases;
+  if(filterStatus)  cases = cases.filter(c=>c.status===filterStatus);
+  if(filterPerson)  cases = cases.filter(c=>c.personId===filterPerson);
+  if(filterCategory) cases = cases.filter(c=>(brokerById(c.brokerId).category||'other')===filterCategory);
+  if(filterChannel)  cases = cases.filter(c=>brokerById(c.brokerId).contactMethod===filterChannel);
+  if(filterNext30){
+    const now = new Date(), t30 = new Date(Date.now()+30*86400000);
+    cases = cases.filter(c=>{ const d=new Date(c.dueAt); return d>=now && d<=t30; });
+  }
+  return cases;
+}
+
+function clearSelection(){ S.selection.clear(); }
+
+function toggleSelect(id, on){
+  if(on) S.selection.add(id); else S.selection.delete(id);
+  renderCasi();
+}
+
+// Seleziona tutte le pratiche che passano i filtri correnti, non solo quelle a video.
+function toggleSelectAll(on){
+  const sel = filteredCases().filter(c=>SELECTABLE_STATUSES.includes(c.status));
+  if(on) sel.forEach(c=>S.selection.add(c.id));
+  else   sel.forEach(c=>S.selection.delete(c.id));
+  renderCasi();
+}
+
+async function bulkSendSelected(){
+  const ids = [...S.selection];
+  if(!ids.length) return;
+  const emailN = ids.filter(id=>{
+    const c = S.cases.find(x=>x.id===id);
+    return c && brokerById(c.brokerId).contactMethod==='email';
+  }).length;
+  const manualN = ids.length - emailN;
+
+  const msg = `Mettere in coda ${emailN} invii via email?\n\n` +
+    (manualN ? `${manualN} pratiche riguardano broker senza email: vanno compilate a mano sul loro form e NON verranno spedite.\n\n` : '') +
+    `Le email partono una alla volta a intervalli, per non farsi bloccare dal provider: una coda lunga può richiedere ore.`;
+  if(!window.confirm(msg)) return;
+
+  try{
+    const r = await api('POST','/api/cases/bulk-send',{ caseIds: ids });
+    clearSelection();
+    await loadAll(); renderCasi(); refreshQueue();
+    toast('ok', `${r.queued} in coda${r.manualOnly?` — ${r.manualOnly} solo manuali (form)`:''}`);
+  } catch(e){ toast('err', e.message); }
+}
+
+async function bulkDeleteSelected(){
+  const ids = [...S.selection];
+  if(!ids.length) return;
+  if(!window.confirm(`Eliminare definitivamente ${ids.length} pratiche? Vengono cancellati anche i messaggi e le prove collegate.`)) return;
+  try{
+    const r = await api('POST','/api/cases/bulk-delete',{ caseIds: ids });
+    clearSelection();
+    await loadAll(); renderCasi();
+    toast('ok', `${r.deleted} pratiche eliminate`);
+  } catch(e){ toast('err', e.message); }
+}
+
+// ──────────────────────────────────────────────────────────────
+// VIEW: VERIFICA PRESENZA
+// ──────────────────────────────────────────────────────────────
+// 20260701 RG - Solo i people-search hanno una ricerca pubblica. Il controllo lo fa
+// l'utente guardando: niente scraping, che questi siti vietano nei termini e
+// bloccano con CAPTCHA. La pratica si apre solo dove marchi "trovato".
+let presenzaPerson = '';
+
+async function renderPresenza() {
+  const main = document.getElementById('main-content');
+  document.getElementById('topbar-actions').innerHTML = '';
+
+  if (!S.persons.length) {
+    main.innerHTML = `<div class="empty"><h3>Nessuna persona</h3><p>Aggiungi prima una persona.</p></div>`;
+    return;
+  }
+  if (!presenzaPerson) presenzaPerson = S.persons[0].id;
+
+  main.innerHTML = `<div class="fade-in">
+    <div class="alert alert-warn" style="margin-bottom:var(--sp4)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:2px"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+      <div>Questi sono gli unici broker su cui <strong>si può verificare guardando</strong>: pubblicano profili con una ricerca pubblica.
+      Apri la ricerca, controlla con i tuoi occhi e marca l'esito: <strong>la pratica si apre solo dove sei stato trovato</strong>.
+      Gli ad-tech non hanno nessuna ricerca — lì l'unico modo è la richiesta di accesso (Art. 15).</div>
+    </div>
+    <div class="filters">
+      <select class="filter-select" onchange="presenzaPerson=this.value;renderPresenza()">
+        ${S.persons.map(p=>`<option value="${p.id}" ${p.id===presenzaPerson?'selected':''}>${esc(p.label)}</option>`).join('')}
+      </select>
+    </div>
+    <div id="presenza-body"><div class="empty"><span class="spinner"></span></div></div>
+  </div>`;
+
+  let list = [];
+  try { list = await api('GET', `/api/checks?personId=${encodeURIComponent(presenzaPerson)}`) || []; }
+  catch(e){ document.getElementById('presenza-body').innerHTML = `<div class="empty"><h3>Errore</h3><p>${esc(e.message)}</p></div>`; return; }
+  S.checks = list;
+
+  const done = list.filter(x=>x.result).length;
+  document.getElementById('presenza-body').innerHTML = `
+    <div style="margin-bottom:var(--sp3);color:var(--muted);font-size:var(--text-sm)">${done}/${list.length} verificati</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Broker</th><th>Ricerca</th><th>Esito</th><th>Pratica</th></tr></thead>
+      <tbody>${list.map(x=>`<tr>
+        <td><strong>${esc(x.name)}</strong> <span class="chip chip-muted">${esc(x.country)}</span></td>
+        <td>
+          ${x.searchUrl
+            ? `<a class="btn btn-ghost btn-sm" href="${esc(x.searchUrl)}" target="_blank" rel="noopener noreferrer">
+                 Apri ricerca ${x.hasTemplate?'':'(pagina broker)'}
+               </a>`
+            : '<span style="color:var(--faint)">nessun link</span>'}
+        </td>
+        <td>
+          <button class="btn ${x.result==='found'?'btn-primary':'btn-ghost'} btn-sm" onclick="markPresence('${x.brokerId}','found')">Trovato</button>
+          <button class="btn ${x.result==='not_found'?'btn-primary':'btn-ghost'} btn-sm" onclick="markPresence('${x.brokerId}','not_found')">Non trovato</button>
+        </td>
+        <td>${x.case ? `${chipStatus(x.case.status)} <span style="color:var(--muted);font-size:var(--text-xs)">${x.case.id}</span>` : '<span style="color:var(--faint)">—</span>'}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+}
+
+async function markPresence(brokerId, result){
+  try{
+    const r = await api('POST','/api/checks',{ personId: presenzaPerson, brokerId, result });
+    if(r.caseId) { await loadAll(); toast('ok', `Trovato — pratica ${r.caseId} aperta`); }
+    else toast('ok','Registrato: non trovato');
+    renderPresenza();
+  } catch(e){ toast('err', e.message); }
+}
 
 function renderCasi() {
   const main = document.getElementById('main-content');
@@ -827,41 +1053,65 @@ function renderCasi() {
       Apri caso
     </button>`;
 
-  const statusOpts = ['','NOT_STARTED','SENT','AWAITING_RESPONSE','CONFIRMED','NEEDS_RECHECK','FAILED','CLOSED'];
+  const statusOpts = ['','NOT_STARTED','QUEUED','SENT','ACCESS_SENT','AWAITING_RESPONSE','CONFIRMED','NO_DATA','NEEDS_RECHECK','FAILED','CLOSED'];
   const personOpts = ['', ...S.persons.map(p=>p.id)];
 
-  let cases = S.cases;
-  if(filterStatus) cases = cases.filter(c=>c.status===filterStatus);
-  if(filterPerson) cases = cases.filter(c=>c.personId===filterPerson);
-  if(filterNext30) {
-    const now = new Date(); const t30 = new Date(now.getTime()+30*86400000);
-    cases = cases.filter(c=>{ const d=new Date(c.dueAt); return d>=now && d<=t30; });
-  }
+  const cases = filteredCases();
+  const selectable = cases.filter(c=>SELECTABLE_STATUSES.includes(c.status));
+  const nSel = S.selection.size;
+  const allSel = selectable.length>0 && selectable.every(c=>S.selection.has(c.id));
 
   main.innerHTML = `<div class="fade-in">
     <div class="filters">
-      <select class="filter-select" id="fil-status" onchange="filterStatus=this.value;renderCasi()">
+      <select class="filter-select" onchange="filterStatus=this.value;clearSelection();renderCasi()">
         ${statusOpts.map(s=>`<option value="${s}" ${s===filterStatus?'selected':''}>${s?STATUS_META[s]?.label||s:'Tutti gli stati'}</option>`).join('')}
       </select>
-      <select class="filter-select" id="fil-person" onchange="filterPerson=this.value;renderCasi()">
+      <select class="filter-select" onchange="filterPerson=this.value;clearSelection();renderCasi()">
         ${personOpts.map(id=>`<option value="${id}" ${id===filterPerson?'selected':''}>${id?personById(id).label:'Tutte le persone'}</option>`).join('')}
       </select>
-      <button class="btn ${filterNext30?'btn-primary':'btn-ghost'} btn-sm" onclick="filterNext30=!filterNext30;renderCasi()">
+      <select class="filter-select" onchange="filterCategory=this.value;clearSelection();renderCasi()">
+        ${['',...Object.keys(CATEGORY_LABEL)].map(k=>`<option value="${k}" ${k===filterCategory?'selected':''}>${k?CATEGORY_LABEL[k]:'Tutte le categorie'}</option>`).join('')}
+      </select>
+      <select class="filter-select" onchange="filterChannel=this.value;clearSelection();renderCasi()">
+        <option value="" ${!filterChannel?'selected':''}>Tutti i canali</option>
+        <option value="email" ${filterChannel==='email'?'selected':''}>Contattabili via email</option>
+        <option value="form" ${filterChannel==='form'?'selected':''}>Solo form (manuali)</option>
+      </select>
+      <button class="btn ${filterNext30?'btn-primary':'btn-ghost'} btn-sm" onclick="filterNext30=!filterNext30;clearSelection();renderCasi()">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         Prossimi 30 gg
       </button>
       <span style="color:var(--muted);font-size:var(--text-xs)">${cases.length} casi</span>
     </div>
+
+    ${nSel>0 ? `<div class="bulkbar">
+      <strong>${nSel} selezionat${nSel===1?'o':'i'}</strong>
+      <button class="btn btn-primary btn-sm" onclick="bulkSendSelected()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        Invia selezionati
+      </button>
+      <button class="btn btn-ghost btn-sm" style="color:var(--err);border-color:var(--err)" onclick="bulkDeleteSelected()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+        Elimina selezionati
+      </button>
+      <button class="btn btn-ghost btn-sm" onclick="clearSelection();renderCasi()">Annulla selezione</button>
+    </div>` : ''}
+
     ${cases.length===0
       ?`<div class="empty"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><h3>Nessun caso</h3><p>Apri un caso selezionando persona e broker.</p></div>`
       :`<div class="tbl-wrap"><table>
-          <thead><tr><th>Persona</th><th>Broker</th><th>Stato</th><th>Aperto</th><th>Scadenza</th><th>Chiuso</th><th>Azioni</th></tr></thead>
+          <thead><tr>
+            <th style="width:34px"><input type="checkbox" id="sel-all" ${allSel?'checked':''} onclick="toggleSelectAll(this.checked)" title="Seleziona tutti i casi filtrati"/></th>
+            <th>Persona</th><th>Broker</th><th>Stato</th><th>Aperto</th><th>Scadenza</th><th>Chiuso</th><th>Azioni</th>
+          </tr></thead>
           <tbody>${cases.map(c=>{
             const b = brokerById(c.brokerId);
             const isOverdue = c.status==='SENT' && new Date(c.dueAt)<new Date();
-            return `<tr>
+            const canSelect = SELECTABLE_STATUSES.includes(c.status);
+            return `<tr class="${S.selection.has(c.id)?'row-sel':''}">
+              <td>${canSelect?`<input type="checkbox" ${S.selection.has(c.id)?'checked':''} onclick="toggleSelect('${c.id}',this.checked)"/>`:''}</td>
               <td>${esc(personById(c.personId).label)}</td>
-              <td><strong>${esc(b.name)}</strong></td>
+              <td><strong>${esc(b.name)}</strong>${c.requestKind==='access'?'<span class="chip chip-muted" style="margin-left:var(--sp1)">Art.15</span>':''}</td>
               <td>${chipStatus(c.status)}${isOverdue?`<span class="chip chip-err" style="margin-left:var(--sp1)">Scaduto</span>`:''}</td>
               <td>${fmt(c.openedAt)}</td>
               <td style="${isOverdue?'color:var(--err);font-weight:700':''}">${fmt(c.dueAt)}</td>
