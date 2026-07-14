@@ -11,6 +11,15 @@ datasource db {
 // sono String. Gli array contengono JSON (vedi src/lib/serialize.ts), gli enum
 // contengono i valori di src/lib/enums.ts e sono validati solo a livello app.
 
+// 20260701 RG - Configurazione persistente (oggi solo l'hash della password admin,
+// impostato al primo login). Vive nel DB, quindi sopravvive alla ricreazione del
+// container solo se /app/data è su un volume.
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
 model Person {
   id        String   @id @default(cuid())
   label     String

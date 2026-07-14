@@ -1,0 +1,22 @@
+# 20260701 RG - Tiene fuori dal contesto di build i segreti e i dati locali: senza
+# questo file, .env e .git verrebbero inviati al daemon a ogni build.
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+
+node_modules
+dist
+
+evidence/
+backups/
+*.db
+*.db-journal
+data/
+
+Dockerfile
+docker-compose*.yml
+.dockerignore
+README.md
+.DS_Store

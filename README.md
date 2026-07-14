@@ -21,14 +21,18 @@ Servizio self-hosted per tenere traccia delle richieste di rimozione dei dati pe
 
 ## Avvio rapido
 
+La password **non si configura in un file**: si imposta al primo login.
+
 ```bash
 cp .env.example .env
-# Modifica .env: credenziali DB, SMTP, ADMIN_PASSWORD_HASH
 
-# Genera l'hash della password di accesso:
-node -e "console.log(require('bcryptjs').hashSync('tuapassword', 12))"
+# 1. Primo avvio, con la finestra di setup aperta:
+ALLOW_SETUP=true docker compose up -d
 
-# Avvia tutto con Docker:
+# 2. Apri http://localhost:3000 e fai login con la password che vuoi (min 8 caratteri).
+#    Viene hashata (bcrypt) e salvata nel DB: da ora è quella definitiva.
+
+# 3. Richiudi il setup: togli ALLOW_SETUP e riavvia.
 docker compose up -d
 
 # (solo sviluppo locale, fuori Docker):
@@ -54,7 +58,7 @@ npm run build          # esegue tsc → genera dist/
 
 # 4. Configura l'ambiente
 cp .env.example .env
-nano .env              # imposta DATABASE_URL, ADMIN_PASSWORD_HASH, SMTP_*, ecc.
+nano .env              # imposta DATABASE_URL, SMTP_*, ecc. (la password si imposta al primo login)
 
 # 5. Crea il DB SQLite e applica lo schema
 npx prisma db push
@@ -97,7 +101,8 @@ La dashboard è disponibile su `http://localhost:3000`.
 | Variabile | Descrizione |
 |-----------|-------------|
 | `DATABASE_URL` | Percorso file SQLite, es. `file:/app/data/app.db` |
-| `ADMIN_PASSWORD_HASH` | Hash bcrypt della password di accesso |
+| `ALLOW_SETUP` | Se `true`, la prima password digitata al login diventa quella definitiva (salvata nel DB). Rimuovila dopo il setup. |
+| `ADMIN_PASSWORD_HASH` | Solo per recupero: se valorizzata ha la precedenza sulla password nel DB |
 | `SMTP_HOST/PORT/USER/PASS` | Configurazione SMTP per l'invio email |
 | `IMAP_HOST/PORT/USER/PASS` | Configurazione IMAP per il parsing delle risposte (opzionale) |
 | `IMAP_ENABLED` | Abilita/disabilita il polling IMAP (`true`/`false`) |
