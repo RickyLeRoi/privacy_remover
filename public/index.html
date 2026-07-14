@@ -189,13 +189,8 @@ td{padding:var(--sp3) var(--sp4);vertical-align:middle;font-variant-numeric:tabu
       </div>
     </div>
     <div class="field">
-      <label for="inp-api">URL API</label>
-      <input id="inp-api" type="url" placeholder="http://localhost:3000" value="http://localhost:3000"/>
-    </div>
-    <div class="field">
-      <label for="inp-token">Bearer Token</label>
+      <label for="inp-token">Password</label>
       <input id="inp-token" type="password" placeholder="La tua password"/>
-      <div class="field-hint">Generata con bcrypt nel file .env</div>
     </div>
     <button class="btn btn-primary" id="btn-login" style="width:100%">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
@@ -334,7 +329,13 @@ async function api(method, path, body) {
     },
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    const raw = await res.text();
+    let msg = raw;
+    try { msg = JSON.parse(raw).error || raw; } catch {}
+    if (res.status === 401 && /unauthorized/i.test(msg)) msg = 'Password errata';
+    throw new Error(msg);
+  }
   return res.json().catch(() => null);
 }
 
@@ -1330,16 +1331,18 @@ function showLogin(){ document.getElementById('view-login').classList.remove('hi
 function showShell(){ document.getElementById('view-login').classList.add('hidden'); document.getElementById('view-shell').classList.remove('hidden'); }
 
 document.getElementById('btn-login').addEventListener('click', async () => {
-  const url   = document.getElementById('inp-api').value.trim().replace(/\/$/,'');
   const token = document.getElementById('inp-token').value.trim();
-  if(!url||!token){ toast('err','Inserisci URL e token'); return; }
-  S.apiUrl = url; S.token = token; S.demo = false;
+  if(!token){ toast('err','Inserisci la password'); return; }
+  // 20260701 RG - S.apiUrl resta vuoto: le chiamate sono relative alla pagina, che è
+  // servita dallo stesso Express che espone l'API. Un URL assoluto qui puntava a
+  // localhost del browser, non al server, e falliva con ERR_CONNECTION_REFUSED.
+  S.apiUrl = ''; S.token = token; S.demo = false;
   try{
     await loadAll();
-    document.getElementById('conn-url').textContent = url.replace('http://','').replace('https://','');
+    document.getElementById('conn-url').textContent = location.host;
     document.getElementById('conn-label').textContent = 'Connesso (API)';
     showShell(); navigate('dashboard');
-  } catch(e){ toast('err','Connessione fallita: '+e.message); }
+  } catch(e){ toast('err','Accesso fallito: '+e.message); }
 });
 
 document.getElementById('btn-demo').addEventListener('click', async () => {
