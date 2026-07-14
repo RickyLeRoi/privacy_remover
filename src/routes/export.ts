@@ -120,7 +120,7 @@ exportRouter.get("/pdf", async (req, res) => {
     .fontSize(10)
     .font("Helvetica")
     .fillColor("#666666")
-    .text(`Generato il ${fmtDate(new Date())} — uso esclusivo famiglia`, { align: "center" });
+    .text(`Generato il ${fmtDate(new Date())} — Agente di ricerca dati personali`, { align: "center" });
   doc.moveDown(1.5);
 
   const total    = cases.length;
