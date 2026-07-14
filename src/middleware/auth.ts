@@ -1,18 +1,6 @@
 import { Request, Response, NextFunction } from "express";
-import bcrypt from "bcryptjs";
-import { ADMIN_PASSWORD_HASH_KEY, getSetting, setSetting } from "../lib/settings";
+import { getHash, verifyPassword } from "../lib/adminPassword";
 import { log } from "../index";
-
-const MIN_PASSWORD_LENGTH = 8;
-
-// 20260701 RG - Precedenza: ADMIN_PASSWORD_HASH (env) batte il valore nel DB.
-// Serve come via di recupero: se dimentichi la password, avvii il container con
-// l'env valorizzata e torni dentro.
-async function currentHash(): Promise<string | null> {
-  const fromEnv = process.env.ADMIN_PASSWORD_HASH?.trim();
-  if (fromEnv) return fromEnv;
-  return getSetting(ADMIN_PASSWORD_HASH_KEY);
-}
 
 export async function authMiddleware(
   req: Request,
@@ -33,31 +21,14 @@ export async function authMiddleware(
     return res.status(401).json({ error: "Unauthorized" });
   }
 
-  const hash = await currentHash();
-
-  if (!hash) {
-    // 20260701 RG - Nessuna password ancora impostata. La finestra di "primo login"
-    // è chiusa a meno che l'operatore non l'abbia aperta esplicitamente: senza questo
-    // gate, chiunque raggiunga l'app appena avviata potrebbe rivendicarla.
-    if (process.env.ALLOW_SETUP !== "true") {
-      log("auth", `401 ${req.method} ${req.path} — nessuna password impostata e ALLOW_SETUP non abilitato`);
-      return res.status(401).json({
-        error: "Setup non abilitato. Riavvia il container con ALLOW_SETUP=true per impostare la password al primo login.",
-      });
-    }
-
-    if (token.length < MIN_PASSWORD_LENGTH) {
-      return res.status(400).json({
-        error: `La password deve essere di almeno ${MIN_PASSWORD_LENGTH} caratteri.`,
-      });
-    }
-
-    await setSetting(ADMIN_PASSWORD_HASH_KEY, bcrypt.hashSync(token, 12));
-    log("auth", "SETUP: password impostata al primo login e salvata nel DB. Riavvia senza ALLOW_SETUP=true per chiudere il setup.");
-    return next();
+  // 20260701 RG - Nessuna password impostata: l'app è al primo avvio. Non si entra
+  // da qui, si passa da POST /api/auth/setup (la dashboard ci arriva da sola
+  // interrogando /api/auth/status).
+  if (!(await getHash())) {
+    return res.status(409).json({ error: "Applicazione non configurata" });
   }
 
-  if (!(await bcrypt.compare(token, hash))) {
+  if (!(await verifyPassword(token))) {
     log("auth", `401 ${req.method} ${req.path} — bad token`);
     return res.status(401).json({ error: "Unauthorized" });
   }

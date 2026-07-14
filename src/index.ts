@@ -9,6 +9,7 @@ import { messagesRouter } from "./routes/messages";
 import { evidenceRouter } from "./routes/evidence";
 import { exportRouter } from "./routes/export";
 import { imapRouter } from "./routes/imap";
+import { authRouter } from "./routes/auth";
 import { authMiddleware } from "./middleware/auth";
 import { initScheduler } from "./services/schedulerService";
 
@@ -23,8 +24,7 @@ log("startup", `NODE_ENV=${process.env.NODE_ENV ?? "not set"}`);
 log("startup", `DATABASE_URL=${(process.env.DATABASE_URL ?? "").replace(/:\/\/.*@/, "://<credentials>@")}`);
 log("startup", `SMTP_HOST=${process.env.SMTP_HOST ?? "not set"}`);
 log("startup", `IMAP_ENABLED=${process.env.IMAP_ENABLED ?? "not set"}  IMAP_HOST=${process.env.IMAP_HOST ?? "not set"}`);
-log("startup", `ADMIN_PASSWORD_HASH=${process.env.ADMIN_PASSWORD_HASH ? "set (override env, ha la precedenza sul DB)" : "non impostata (si usa la password salvata nel DB)"}`);
-log("startup", `ALLOW_SETUP=${process.env.ALLOW_SETUP === "true" ? "true — la prima password digitata al login verrà salvata" : "false — nessun setup possibile"}`);
+log("startup", `ADMIN_PASSWORD_HASH=${process.env.ADMIN_PASSWORD_HASH ? "set (override env, ha la precedenza sul DB)" : "non impostata (si usa la password scelta al primo avvio)"}`);
 
 const app = express();
 app.use(express.json());
@@ -50,6 +50,11 @@ app.get("/health", (_req, res) => {
   log("health", "ping");
   res.json({ ok: true, ts: new Date().toISOString() });
 });
+
+// 20260701 RG - Deve stare prima di authMiddleware: /status e /setup girano senza
+// password (al primo avvio non ne esiste ancora una). Le rotte distruttive dentro
+// authRouter applicano l'auth per conto proprio.
+app.use("/api/auth", authRouter);
 
 app.use("/api", authMiddleware);
 app.use("/api/persons",  personsRouter);

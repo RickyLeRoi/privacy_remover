@@ -21,19 +21,17 @@ Servizio self-hosted per tenere traccia delle richieste di rimozione dei dati pe
 
 ## Avvio rapido
 
-La password **non si configura in un file**: si imposta al primo login.
+La password **non si configura in un file**: al primo avvio la dashboard chiede di sceglierla.
 
 ```bash
 cp .env.example .env
-
-# 1. Primo avvio, con la finestra di setup aperta:
-ALLOW_SETUP=true docker compose up -d
-
-# 2. Apri http://localhost:3000 e fai login con la password che vuoi (min 8 caratteri).
-#    Viene hashata (bcrypt) e salvata nel DB: da ora è quella definitiva.
-
-# 3. Richiudi il setup: togli ALLOW_SETUP e riavvia.
 docker compose up -d
+
+# Apri http://localhost:3000: al primo accesso la dashboard chiede di creare la
+# password di amministratore (min 8 caratteri). Viene hashata (bcrypt) e salvata
+# nel DB. Dagli accessi successivi la stessa schermata chiede semplicemente la
+# password. Cambio password e reset si fanno dall'icona ingranaggio in basso a
+# sinistra.
 
 # (solo sviluppo locale, fuori Docker):
 npm install
@@ -101,8 +99,7 @@ La dashboard è disponibile su `http://localhost:3000`.
 | Variabile | Descrizione |
 |-----------|-------------|
 | `DATABASE_URL` | Percorso file SQLite, es. `file:/app/data/app.db` |
-| `ALLOW_SETUP` | Se `true`, la prima password digitata al login diventa quella definitiva (salvata nel DB). Rimuovila dopo il setup. |
-| `ADMIN_PASSWORD_HASH` | Solo per recupero: se valorizzata ha la precedenza sulla password nel DB |
+| `ADMIN_PASSWORD_HASH` | Solo per recupero: se valorizzata ha la precedenza sulla password scelta al primo avvio |
 | `SMTP_HOST/PORT/USER/PASS` | Configurazione SMTP per l'invio email |
 | `IMAP_HOST/PORT/USER/PASS` | Configurazione IMAP per il parsing delle risposte (opzionale) |
 | `IMAP_ENABLED` | Abilita/disabilita il polling IMAP (`true`/`false`) |

@@ -1,8 +1,6 @@
-import { PrismaClient } from "@prisma/client";
 import { LegalBasis, ContactMethod, DiscoveryKey } from "./lib/enums";
+import { prisma } from "./lib/prisma";
 import { packList } from "./lib/serialize";
-
-const prisma = new PrismaClient();
 
 const brokers = [
   {
@@ -285,8 +283,7 @@ const brokers = [
   },
 ];
 
-async function main() {
-  console.log("Seeding brokers...");
+export async function seedBrokers(): Promise<number> {
   for (const b of brokers) {
     const { acceptedDiscoveryKeys, ...rest } = b;
     await prisma.broker.upsert({
@@ -294,11 +291,15 @@ async function main() {
       update: {},
       create: { ...rest, acceptedDiscoveryKeys: packList(acceptedDiscoveryKeys) },
     });
-    console.log("  ✓", b.name);
   }
-  console.log("Done.");
+  return brokers.length;
 }
 
-main()
-  .catch(console.error)
-  .finally(() => prisma.$disconnect());
+// 20260701 RG - Auto-esecuzione solo se lanciato come script (`node dist/seed.js`
+// dall'entrypoint). Come import, espone solo seedBrokers(), riusata dal reset.
+if (require.main === module) {
+  seedBrokers()
+    .then((n) => console.log(`Seeded ${n} brokers.`))
+    .catch(console.error)
+    .finally(() => prisma.$disconnect());
+}

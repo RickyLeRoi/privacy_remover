@@ -25,3 +25,8 @@ export async function setSetting(key: string, value: string): Promise<void> {
   });
   cache.set(key, value);
 }
+
+export async function deleteSetting(key: string): Promise<void> {
+  await prisma.setting.deleteMany({ where: { key } });
+  cache.delete(key);
+}
