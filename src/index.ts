@@ -12,7 +12,6 @@ import { imapRouter } from "./routes/imap";
 import { authMiddleware } from "./middleware/auth";
 import { initScheduler } from "./services/schedulerService";
 
-// ── Minimal structured logger ─────────────────────────────────────────────────
 function ts() { return new Date().toISOString(); }
 export function log(tag: string, msg: string) { console.log(`${ts()} [${tag}] ${msg}`); }
 export function logErr(tag: string, msg: string, err?: unknown) {
@@ -29,13 +28,11 @@ log("startup", `ADMIN_PASSWORD_HASH=${process.env.ADMIN_PASSWORD_HASH ? "set" : 
 const app = express();
 app.use(express.json());
 
-// ── Request logger ────────────────────────────────────────────────────────────
 app.use((req: Request, _res: Response, next: NextFunction) => {
   log("http", `${req.method} ${req.path}`);
   next();
 });
 
-// Rate limiting — even on private networks
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 200,
@@ -44,16 +41,15 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Static dashboard — served BEFORE auth so the login page is accessible
+// 20260701 RG - Static prima dell'auth: serve per raggiungere la pagina di login,
+// ma significa anche che tutto ciò che sta in public/ è accessibile senza token.
 app.use(express.static(path.join(__dirname, "..", "public")));
 
-// Health check — no auth needed
 app.get("/health", (_req, res) => {
   log("health", "ping");
   res.json({ ok: true, ts: new Date().toISOString() });
 });
 
-// All API routes require Bearer token auth
 app.use("/api", authMiddleware);
 app.use("/api/persons",  personsRouter);
 app.use("/api/brokers",  brokersRouter);
@@ -63,15 +59,16 @@ app.use("/api/evidence", evidenceRouter);
 app.use("/api/export",   exportRouter);
 app.use("/api/imap",     imapRouter);
 
-// Global error handler
+app.get("*", (_req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "index.html"));
+});
+
+// 20260701 RG - Deve restare l'ultimo middleware registrato: Express riconosce
+// l'error handler dalla firma a 4 argomenti e lo invoca solo se viene dopo le
+// rotte che possono fallire.
 app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
   logErr("express", `Unhandled error on ${req.method} ${req.path}`, err);
   res.status(500).json({ error: "Internal server error" });
-});
-
-// SPA fallback — redirect unknown routes to the dashboard
-app.get("*", (_req, res) => {
-  res.sendFile(path.join(__dirname, "..", "public", "index.html"));
 });
 
 const PORT = Number(process.env.PORT ?? 3000);
@@ -80,7 +77,6 @@ app.listen(PORT, "0.0.0.0", async () => {
   await initScheduler();
 });
 
-// Catch unhandled rejections so they appear in logs instead of silently dying
 process.on("unhandledRejection", (reason) => {
   logErr("process", "Unhandled promise rejection", reason);
 });

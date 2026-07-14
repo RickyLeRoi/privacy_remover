@@ -1,0 +1,18 @@
+version: "3.9"
+# 20260701 RG - Compose per la VM: usa l'immagine pubblicata, nessun sorgente da
+# copiare. Il DB SQLite è embedded, quindi non serve nessun container di database.
+services:
+  app:
+    image: ghcr.io/rickyleroi/privacy_remover:latest
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      # 20260701 RG - Aperto su tutte le interfacce: raggiungibile da tutta la LAN.
+      - "3000:3000"
+    volumes:
+      - dbdata:/app/data
+      - evidence:/app/evidence
+
+volumes:
+  dbdata:
+  evidence:

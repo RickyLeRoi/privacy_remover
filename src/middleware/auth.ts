@@ -2,9 +2,6 @@ import { Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import { log } from "../index";
 
-// Simple Bearer token auth — use only over VPN/LAN.
-// Token = bcrypt hash comparison against ADMIN_PASSWORD_HASH env.
-// Generate hash: node -e "console.log(require('bcryptjs').hashSync('yourpassword', 12))"
 export async function authMiddleware(
   req: Request,
   res: Response,
@@ -17,11 +14,11 @@ export async function authMiddleware(
     return res.status(401).json({ error: "Unauthorized" });
   }
 
-  // Bearer header (API calls)
   let token = req.headers.authorization?.replace("Bearer ", "").trim();
 
-  // Query-param fallback — used only by file download endpoints (/api/export/*)
-  // Acceptable on private LAN; never expose these endpoints publicly.
+  // 20260701 RG - Il token in query string finisce nei log e nella cronologia:
+  // accettabile solo perché il servizio gira in LAN/VPN. Non esporre /export/*
+  // pubblicamente.
   if (!token && req.path.startsWith("/export/")) {
     token = typeof req.query.token === "string" ? req.query.token : undefined;
   }

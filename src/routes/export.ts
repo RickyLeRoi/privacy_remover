@@ -1,10 +1,9 @@
 import { Router } from "express";
 import PDFDocument from "pdfkit";
 import { prisma } from "../lib/prisma";
+import { unpackList } from "../lib/serialize";
 
 export const exportRouter = Router();
-
-// ─── helpers ─────────────────────────────────────────────────────────────────
 
 function fmtDate(d: Date | string | null | undefined): string {
   if (!d) return "—";
@@ -33,8 +32,6 @@ const STATUS_IT: Record<string, string> = {
   CLOSED: "Chiusa",
 };
 
-// ─── fetch data ───────────────────────────────────────────────────────────────
-
 async function fetchCases(personId?: string) {
   return prisma.removalCase.findMany({
     where: personId ? { personId } : undefined,
@@ -47,8 +44,6 @@ async function fetchCases(personId?: string) {
     orderBy: [{ person: { label: "asc" } }, { openedAt: "asc" }],
   });
 }
-
-// ─── GET /api/export/csv?personId=... ────────────────────────────────────────
 
 exportRouter.get("/csv", async (req, res) => {
   const personId = typeof req.query.personId === "string" ? req.query.personId : undefined;
@@ -72,7 +67,7 @@ exportRouter.get("/csv", async (req, res) => {
   const rows = cases.map((c) =>
     [
       c.person.label,
-      c.person.emails.join("; "),
+      unpackList(c.person.emails).join("; "),
       c.broker.name,
       c.broker.country,
       c.broker.legalBasis,
@@ -93,17 +88,15 @@ exportRouter.get("/csv", async (req, res) => {
 
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-  // BOM for correct Excel/Numbers rendering of UTF-8
+  // 20260701 RG - Il BOM iniziale serve a Excel/Numbers per riconoscere l'UTF-8:
+  // senza, gli accenti risultano corrotti.
   res.send("\uFEFF" + csv);
 });
-
-// ─── GET /api/export/pdf?personId=... ────────────────────────────────────────
 
 exportRouter.get("/pdf", async (req, res) => {
   const personId = typeof req.query.personId === "string" ? req.query.personId : undefined;
   const cases = await fetchCases(personId);
 
-  // Group by person
   const byPerson = new Map<string, typeof cases>();
   for (const c of cases) {
     const arr = byPerson.get(c.person.label) ?? [];
@@ -118,7 +111,6 @@ exportRouter.get("/pdf", async (req, res) => {
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
   doc.pipe(res);
 
-  // ── Cover ──────────────────────────────────────────────────
   doc
     .fontSize(20)
     .font("Helvetica-Bold")
@@ -131,7 +123,6 @@ exportRouter.get("/pdf", async (req, res) => {
     .text(`Generato il ${fmtDate(new Date())} — uso esclusivo famiglia`, { align: "center" });
   doc.moveDown(1.5);
 
-  // ── Summary ────────────────────────────────────────────────
   const total    = cases.length;
   const confirmed = cases.filter((c) => c.status === "CONFIRMED").length;
   const pending  = cases.filter((c) => c.status === "SENT" || c.status === "AWAITING_RESPONSE").length;
@@ -151,15 +142,13 @@ exportRouter.get("/pdf", async (req, res) => {
   });
   doc.moveDown(1.5);
 
-  // ── Per person ─────────────────────────────────────────────
   for (const [personLabel, personCases] of byPerson) {
     doc.addPage();
     doc.fontSize(14).font("Helvetica-Bold").fillColor("#000000").text(personLabel);
     doc.fontSize(9).font("Helvetica").fillColor("#444444")
-      .text(personCases[0].person.emails.join(", "));
+      .text(unpackList(personCases[0].person.emails).join(", "));
     doc.moveDown(0.8);
 
-    // Per-person summary
     const pDone = personCases.filter((c) => c.status === "CONFIRMED").length;
     doc.fontSize(10).font("Helvetica").fillColor("#000000")
       .text(`${pDone}/${personCases.length} rimozioni confermate (${
@@ -167,7 +156,6 @@ exportRouter.get("/pdf", async (req, res) => {
       }%)`);
     doc.moveDown(0.8);
 
-    // Table header
     const COL = { broker: 48, country: 220, legal: 255, status: 310, opened: 375, due: 430, closed: 480 };
     doc.fontSize(8).font("Helvetica-Bold").fillColor("#333333");
     doc.text("Broker",      COL.broker,  doc.y, { continued: true, width: 165 });
@@ -183,7 +171,6 @@ exportRouter.get("/pdf", async (req, res) => {
     doc.moveTo(48, lineY).lineTo(547, lineY).strokeColor("#cccccc").stroke();
     doc.moveDown(0.4);
 
-    // Table rows
     doc.font("Helvetica").fillColor("#000000");
     for (const c of personCases) {
       const rowY = doc.y;
@@ -197,7 +184,6 @@ exportRouter.get("/pdf", async (req, res) => {
       doc.text(fmtDate(c.closedAt),                COL.closed,  rowY, { width: 70 });
       doc.moveDown(0.3);
 
-      // Page break guard
       if (doc.y > 750) doc.addPage();
     }
   }

@@ -1,4 +1,6 @@
-import { Address, Broker, DiscoveryKey, LegalBasis, Person } from "@prisma/client";
+import { Address, Broker, Person } from "@prisma/client";
+import { DiscoveryKey, LegalBasis } from "../lib/enums";
+import { unpackList } from "../lib/serialize";
 import { gdprErasureTemplate } from "../templates/gdprErasure";
 import { ccpaOptOutTemplate } from "../templates/ccpaOptOut";
 import { genericOptOutTemplate } from "../templates/genericOptOut";
@@ -9,28 +11,22 @@ export function generateMessage(
   person: PersonWithAddresses,
   broker: Broker
 ): { subject: string; body: string; discoveryKeysUsed: DiscoveryKey[] } {
-  // Decide which discovery keys to include based on what the broker accepts
+  const acceptedKeys = unpackList(broker.acceptedDiscoveryKeys);
+  const emails = unpackList(person.emails);
+  const phones = unpackList(person.phones);
+
   const keysUsed: DiscoveryKey[] = [];
   const identityLines: string[] = [];
 
-  if (
-    broker.acceptedDiscoveryKeys.includes("email") &&
-    person.emails.length > 0
-  ) {
+  if (acceptedKeys.includes("email") && emails.length > 0) {
     keysUsed.push("email");
-    identityLines.push(`Email: ${person.emails.join(", ")}`);
+    identityLines.push(`Email: ${emails.join(", ")}`);
   }
-  if (
-    broker.acceptedDiscoveryKeys.includes("phone") &&
-    person.phones.length > 0
-  ) {
+  if (acceptedKeys.includes("phone") && phones.length > 0) {
     keysUsed.push("phone");
-    identityLines.push(`Phone: ${person.phones.join(", ")}`);
+    identityLines.push(`Phone: ${phones.join(", ")}`);
   }
-  if (
-    broker.acceptedDiscoveryKeys.includes("address") &&
-    person.addresses.length > 0
-  ) {
+  if (acceptedKeys.includes("address") && person.addresses.length > 0) {
     keysUsed.push("address");
     const addr = person.addresses.map(
       (a) => `${a.street}, ${a.city}${a.region ? " (" + a.region + ")" : ""}, ${a.country}`
@@ -38,9 +34,9 @@ export function generateMessage(
     identityLines.push(`Address(es): ${addr.join(" | ")}`);
   }
 
-  // fullName is intentionally NOT included here.
-  // If broker.requiresFullName, the operator must add it manually in the
-  // response phase via /api/persons/:id/response-identity.
+  // 20260701 RG - fullName non deve mai finire nella richiesta iniziale, neanche
+  // se broker.requiresFullName è true: in quel caso va aggiunto a mano in fase di
+  // risposta, leggendolo da /api/persons/:id/response-identity.
 
   const identityBlock = identityLines.join("\n");
 

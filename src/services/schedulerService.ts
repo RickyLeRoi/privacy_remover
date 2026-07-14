@@ -1,18 +1,16 @@
 import cron from "node-cron";
 import { addDays } from "date-fns";
-import { CaseStatus } from "@prisma/client";
+import { CaseStatus } from "../lib/enums";
 import { prisma } from "../lib/prisma";
 import { pollInbox } from "./imapService";
 import { log, logErr } from "../index";
 
-// Track last successful IMAP poll time for status endpoint
 export let lastImapPoll: Date | null = null;
 export let lastImapError: string | null = null;
 
 export async function initScheduler() {
   log("scheduler", "initializing jobs...");
 
-  // ── Job: flag overdue cases — runs every 6 hours ─────────────
   cron.schedule("0 */6 * * *", async () => {
     log("scheduler", "running flag-overdue job");
     try {
@@ -29,7 +27,6 @@ export async function initScheduler() {
     }
   });
 
-  // ── Job: schedule re-verification tasks — runs every 12 hours ─
   cron.schedule("0 */12 * * *", async () => {
     log("scheduler", "running reverification job");
     try {
@@ -54,7 +51,6 @@ export async function initScheduler() {
     }
   });
 
-  // ── Job: IMAP inbox polling — every 30 minutes ────────────────
   if (process.env.IMAP_ENABLED !== "false") {
     log("scheduler", `IMAP polling enabled — host=${process.env.IMAP_HOST ?? "not set"}  user=${process.env.IMAP_USER ?? "not set"}`);
     pollInbox()

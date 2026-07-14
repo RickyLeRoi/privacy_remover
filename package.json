@@ -6,9 +6,8 @@
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "db:migrate": "prisma migrate dev",
-    "db:migrate:deploy": "prisma migrate deploy",
-    "db:seed": "ts-node prisma/seed.ts",
+    "db:push": "prisma db push",
+    "db:seed": "ts-node src/seed.ts",
     "db:studio": "prisma studio"
   },
   "dependencies": {
@@ -25,6 +24,7 @@
     "node-cron": "^3.0.3",
     "nodemailer": "^6.9.13",
     "pdfkit": "^0.18.0",
+    "prisma": "^5.13.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
@@ -36,7 +36,6 @@
     "@types/node-cron": "^3.0.11",
     "@types/nodemailer": "^6.4.15",
     "@types/pdfkit": "^0.17.5",
-    "prisma": "^5.13.0",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.4.0"
   }

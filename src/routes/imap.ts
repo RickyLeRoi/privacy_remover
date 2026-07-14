@@ -4,7 +4,6 @@ import { pollInbox } from "../services/imapService";
 
 export const imapRouter = Router();
 
-// GET /api/imap/status — current IMAP poller state
 imapRouter.get("/status", (_req, res) => {
   const enabled = process.env.IMAP_ENABLED !== "false";
   const configured = !!(process.env.IMAP_HOST && process.env.IMAP_USER && process.env.IMAP_PASS);
@@ -19,7 +18,6 @@ imapRouter.get("/status", (_req, res) => {
   });
 });
 
-// POST /api/imap/poll — trigger a manual poll
 imapRouter.post("/poll", async (_req, res) => {
   try {
     await pollInbox();

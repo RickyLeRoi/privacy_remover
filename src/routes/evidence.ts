@@ -3,16 +3,17 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
+import { z } from "zod";
 import { prisma } from "../lib/prisma";
+import { EVIDENCE_DIR, ensureEvidenceDir, sha256File } from "../lib/evidenceStore";
 
 export const evidenceRouter = Router();
 
-const EVIDENCE_DIR = path.join(process.cwd(), "evidence");
+ensureEvidenceDir();
 
-// Ensure the evidence directory exists
-if (!fs.existsSync(EVIDENCE_DIR)) {
-  fs.mkdirSync(EVIDENCE_DIR, { recursive: true });
-}
+const EvidenceTypeSchema = z
+  .enum(["sent_email", "broker_response", "screenshot", "id_doc"])
+  .default("screenshot");
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, EVIDENCE_DIR),
@@ -24,7 +25,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB max
+  limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const allowed = [".pdf", ".png", ".jpg", ".jpeg", ".eml", ".txt"];
     const ext = path.extname(file.originalname).toLowerCase();
@@ -33,17 +34,19 @@ const upload = multer({
   },
 });
 
-function sha256File(filePath: string): string {
-  const buf = fs.readFileSync(filePath);
-  return crypto.createHash("sha256").update(buf).digest("hex");
-}
-
-// Upload evidence for a case
 evidenceRouter.post(
   "/cases/:caseId",
   upload.single("file"),
   async (req, res) => {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+    // 20260701 RG - La colonna type è una String libera (SQLite non ha enum):
+    // senza questa validazione il client può scriverci qualunque valore.
+    const parsedType = EvidenceTypeSchema.safeParse(req.body.type ?? undefined);
+    if (!parsedType.success) {
+      fs.unlinkSync(req.file.path);
+      return res.status(400).json({ error: "Invalid evidence type" });
+    }
 
     const caseExists = await prisma.removalCase.findUnique({
       where: { id: req.params.caseId },
@@ -53,15 +56,12 @@ evidenceRouter.post(
       return res.status(404).json({ error: "Case not found" });
     }
 
-    const checksum = sha256File(req.file.path);
-    const relPath = path.relative(EVIDENCE_DIR, req.file.path);
-
     const evidence = await prisma.evidence.create({
       data: {
         caseId: req.params.caseId,
-        type: (req.body.type as any) ?? "screenshot",
-        filePath: relPath,
-        checksum,
+        type: parsedType.data,
+        filePath: path.relative(EVIDENCE_DIR, req.file.path),
+        checksum: sha256File(req.file.path),
         encrypted: false,
       },
     });
@@ -70,7 +70,6 @@ evidenceRouter.post(
   }
 );
 
-// List evidence for a case
 evidenceRouter.get("/cases/:caseId", async (req, res) => {
   const evidence = await prisma.evidence.findMany({
     where: { caseId: req.params.caseId },
@@ -79,7 +78,6 @@ evidenceRouter.get("/cases/:caseId", async (req, res) => {
   res.json(evidence);
 });
 
-// Download an evidence file
 evidenceRouter.get("/:id/download", async (req, res) => {
   const ev = await prisma.evidence.findUnique({ where: { id: req.params.id } });
   if (!ev) return res.status(404).json({ error: "Not found" });
@@ -92,7 +90,6 @@ evidenceRouter.get("/:id/download", async (req, res) => {
   res.download(filePath);
 });
 
-// Delete an evidence file
 evidenceRouter.delete("/:id", async (req, res) => {
   const ev = await prisma.evidence.findUnique({ where: { id: req.params.id } });
   if (!ev) return res.status(404).json({ error: "Not found" });

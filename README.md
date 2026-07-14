@@ -17,7 +17,7 @@ Servizio self-hosted per tenere traccia delle richieste di rimozione dei dati pe
 - Export CSV e PDF dei casi
 - Scheduler integrato: segnala pratiche scadute, pianifica verifiche a 90 giorni
 - Seed con ~22 broker pre-caricati (italiani e internazionali)
-- Containerizzato con Docker + PostgreSQL; nessuna dipendenza esterna (no MongoDB, no servizi cloud)
+- Containerizzato con Docker; database **SQLite** embedded (un solo container, nessun DB server esterno)
 
 ## Avvio rapido
 
@@ -33,14 +33,14 @@ docker compose up -d
 
 # (solo sviluppo locale, fuori Docker):
 npm install
-npm run db:migrate
-npm run db:seed
+DATABASE_URL="file:./dev.db" npx prisma db push   # crea il DB SQLite
+npm run db:seed                                    # carica i broker
 npm run dev
 ```
 
 ## Deploy diretto sul server (senza Docker)
 
-Requisiti sul server: **Node.js 20+**, **PostgreSQL 16+**, **npm**.
+Requisiti sul server: **Node.js 20+**, **npm**. Il database è **SQLite** (file locale), nessun server DB da installare.
 
 ```bash
 # 1. Copia i file sul server (es. via scp o git clone)
@@ -56,11 +56,11 @@ npm run build          # esegue tsc → genera dist/
 cp .env.example .env
 nano .env              # imposta DATABASE_URL, ADMIN_PASSWORD_HASH, SMTP_*, ecc.
 
-# 5. Crea il DB e applica le migrazioni
-npx prisma migrate deploy
+# 5. Crea il DB SQLite e applica lo schema
+npx prisma db push
 
 # 6. (opzionale) Carica i broker pre-configurati
-npx ts-node prisma/seed.ts   # oppure: npx prisma db seed
+node dist/seed.js   # in dev: npm run db:seed
 
 # 7. Avvia
 node dist/index.js
@@ -96,7 +96,7 @@ La dashboard è disponibile su `http://localhost:3000`.
 
 | Variabile | Descrizione |
 |-----------|-------------|
-| `DATABASE_URL` | Stringa di connessione PostgreSQL |
+| `DATABASE_URL` | Percorso file SQLite, es. `file:/app/data/app.db` |
 | `ADMIN_PASSWORD_HASH` | Hash bcrypt della password di accesso |
 | `SMTP_HOST/PORT/USER/PASS` | Configurazione SMTP per l'invio email |
 | `IMAP_HOST/PORT/USER/PASS` | Configurazione IMAP per il parsing delle risposte (opzionale) |
@@ -135,11 +135,13 @@ Vedere [.env.example](.env.example) per la lista completa.
 
 ```
 prisma/
-  schema.prisma          — modello dati
-  seed.ts                — ~22 broker pre-caricati
+  schema.prisma          — modello dati (SQLite)
 src/
   index.ts               — entrypoint Express
+  seed.ts                — ~22 broker pre-caricati (compilato in dist/seed.js)
   lib/prisma.ts          — singleton Prisma
+  lib/enums.ts           — enum applicativi (SQLite non ha enum nativi)
+  lib/serialize.ts       — array <-> JSON string (SQLite non ha array nativi)
   middleware/auth.ts     — autenticazione Bearer token
   routes/                — endpoint REST
   services/
@@ -152,7 +154,7 @@ public/
   index.html             — dashboard SPA (vanilla JS)
 evidence/                — storage locale file prova (volume Docker)
 scripts/
-  backup.sh              — backup PostgreSQL cifrato
+  backup.sh              — backup DB cifrato (da adeguare a SQLite: copiare il file .db)
 Caddyfile                — reverse proxy HTTPS (opzionale)
 ```
 

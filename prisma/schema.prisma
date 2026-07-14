@@ -3,32 +3,29 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
-// ─── Persona (membro famiglia) ───────────────────────────────────────────────
-// fullName è OPZIONALE e usato SOLO come dato di risposta quando un broker
-// lo richiede esplicitamente. Non viene mai usato come chiave di discovery.
+// 20260701 RG - SQLite non ha array né enum nativi: i campi che li rappresentano
+// sono String. Gli array contengono JSON (vedi src/lib/serialize.ts), gli enum
+// contengono i valori di src/lib/enums.ts e sono validati solo a livello app.
+
 model Person {
   id        String   @id @default(cuid())
-  label     String   // etichetta interna, es. "Ricky" — non esposta ai broker
+  label     String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // ── chiavi di discovery ──────────────────────────────────
-  emails    String[] // uno o più indirizzi email storici
-  phones    String[] // es. ["+39 333 xxx", "+39 02 xxx"]
+  emails    String   @default("[]")
+  phones    String   @default("[]")
   addresses Address[]
 
-  // ── campo risposta (response-only) ───────────────────────
-  // Compilato solo se il broker lo richiede nella fase di risposta.
-  // Non partecipa mai alla generazione della richiesta iniziale.
+  // 20260701 RG - Dato di sola risposta: non entra mai nella richiesta iniziale
+  // né viene usato come chiave di discovery verso i broker.
   fullName  String?  @map("full_name")
 
-  // ── altri alias ──────────────────────────────────────────
-  aliases   String[] // vecchi username, nomi da nubile, nickname storici
-
+  aliases   String   @default("[]")
   notes     String?
 
   cases     RemovalCase[]
@@ -45,44 +42,39 @@ model Address {
   current  Boolean @default(false)
 }
 
-// ─── Broker ───────────────────────────────────────────────────────────────────
 model Broker {
-  id              String         @id @default(cuid())
-  name            String         @unique
-  country         String         // es. "US", "DE" — IT gestito in flusso separato
-  legalBasis      LegalBasis     // gdpr | ccpa | opt_out
-  contactMethod   ContactMethod  // email | form | api
-  contactTarget   String         // email address o URL del form/API
-  portalUrl       String?        // URL pagina opt-out pubblica, per reference
-  slaInDays       Int            @default(30)
-  // se true, il broker richiede nome/cognome in fase di RISPOSTA
-  requiresFullName Boolean       @default(false)
-  // se true, richiede copia documento — va gestito con cifratura
-  requiresIdProof  Boolean       @default(false)
-  // chiavi di discovery accettate da questo broker
-  acceptedDiscoveryKeys DiscoveryKey[]
-  active          Boolean        @default(true)
-  notes           String?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  id                    String   @id @default(cuid())
+  name                  String   @unique
+  country               String
+  legalBasis            String
+  contactMethod         String
+  contactTarget         String
+  portalUrl             String?
+  slaInDays             Int      @default(30)
+  requiresFullName      Boolean  @default(false)
+  requiresIdProof       Boolean  @default(false)
+  acceptedDiscoveryKeys String   @default("[]")
+  active                Boolean  @default(true)
+  notes                 String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
-  cases           RemovalCase[]
+  cases                 RemovalCase[]
 }
 
-// ─── Caso di rimozione ────────────────────────────────────────────────────────
 model RemovalCase {
-  id          String      @id @default(cuid())
+  id          String   @id @default(cuid())
   personId    String
-  person      Person      @relation(fields: [personId], references: [id])
+  person      Person   @relation(fields: [personId], references: [id])
   brokerId    String
-  broker      Broker      @relation(fields: [brokerId], references: [id])
-  status      CaseStatus  @default(NOT_STARTED)
-  openedAt    DateTime    @default(now())
-  dueAt       DateTime    // openedAt + broker.slaInDays
+  broker      Broker   @relation(fields: [brokerId], references: [id])
+  status      String   @default("NOT_STARTED")
+  openedAt    DateTime @default(now())
+  dueAt       DateTime
   closedAt    DateTime?
-  nextCheckAt DateTime?   // per re-verifica post-rimozione
+  nextCheckAt DateTime?
   notes       String?
-  updatedAt   DateTime    @updatedAt
+  updatedAt   DateTime @updatedAt
 
   messages    OutboundMessage[]
   evidence    Evidence[]
@@ -91,89 +83,37 @@ model RemovalCase {
   @@unique([personId, brokerId])
 }
 
-// ─── Messaggio inviato ────────────────────────────────────────────────────────
 model OutboundMessage {
-  id           String      @id @default(cuid())
-  caseId       String
-  case         RemovalCase @relation(fields: [caseId], references: [id])
-  channel      Channel     // email | form_manual
-  templateKey  String      // es. "gdpr_erasure_v1", "ccpa_optout_v1"
-  // Chiavi di discovery effettivamente incluse nel messaggio (mai fullName)
-  discoveryKeysUsed DiscoveryKey[]
-  // Se il broker aveva requiresFullName = true, nome incluso nella risposta
-  fullNameIncluded  Boolean @default(false)
-  sentAt       DateTime?
-  providerMsgId String?   // message-id SMTP
-  raw          String?    @db.Text // copia del testo inviato, cifrata in prod
-  createdAt    DateTime   @default(now())
+  id                String      @id @default(cuid())
+  caseId            String
+  case              RemovalCase @relation(fields: [caseId], references: [id])
+  channel           String
+  templateKey       String
+  discoveryKeysUsed String      @default("[]")
+  fullNameIncluded  Boolean     @default(false)
+  sentAt            DateTime?
+  providerMsgId     String?
+  raw               String?
+  createdAt         DateTime    @default(now())
 }
 
-// ─── Prove e allegati ─────────────────────────────────────────────────────────
 model Evidence {
   id        String      @id @default(cuid())
   caseId    String
   case      RemovalCase @relation(fields: [caseId], references: [id])
-  type      EvidenceType // sent_email | broker_response | screenshot | id_doc
-  filePath  String      // path relativo a /app/evidence/
-  checksum  String      // sha256, per integrità
+  type      String
+  filePath  String
+  checksum  String
   encrypted Boolean     @default(false)
   createdAt DateTime    @default(now())
 }
 
-// ─── Task di verifica ricorrente ──────────────────────────────────────────────
 model VerificationTask {
   id           String      @id @default(cuid())
   caseId       String
   case         RemovalCase @relation(fields: [caseId], references: [id])
   scheduledFor DateTime
   executedAt   DateTime?
-  result       VerificationResult?
+  result       String?
   notes        String?
-}
-
-// ─── Enums ───────────────────────────────────────────────────────────────────
-enum LegalBasis {
-  gdpr
-  ccpa
-  opt_out
-}
-
-enum ContactMethod {
-  email
-  form
-  api
-}
-
-enum CaseStatus {
-  NOT_STARTED
-  SENT
-  AWAITING_RESPONSE
-  CONFIRMED
-  FAILED
-  NEEDS_RECHECK
-  CLOSED
-}
-
-enum Channel {
-  email
-  form_manual
-}
-
-enum EvidenceType {
-  sent_email
-  broker_response
-  screenshot
-  id_doc
-}
-
-enum VerificationResult {
-  removed
-  still_present
-  error
-}
-
-enum DiscoveryKey {
-  email
-  phone
-  address
 }

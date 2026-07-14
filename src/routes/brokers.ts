@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
+import { packList, brokerOut } from "../lib/serialize";
 
 export const brokersRouter = Router();
 
@@ -9,13 +10,13 @@ brokersRouter.get("/", async (_req, res) => {
     where: { active: true },
     orderBy: { name: "asc" },
   });
-  res.json(brokers);
+  res.json(brokers.map(brokerOut));
 });
 
 brokersRouter.get("/:id", async (req, res) => {
   const b = await prisma.broker.findUnique({ where: { id: req.params.id } });
   if (!b) return res.status(404).json({ error: "Not found" });
-  res.json(b);
+  res.json(brokerOut(b));
 });
 
 const BrokerSchema = z.object({
@@ -36,8 +37,11 @@ const BrokerSchema = z.object({
 brokersRouter.post("/", async (req, res) => {
   const parsed = BrokerSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json(parsed.error);
-  const b = await prisma.broker.create({ data: parsed.data });
-  res.status(201).json(b);
+  const { acceptedDiscoveryKeys, ...rest } = parsed.data;
+  const b = await prisma.broker.create({
+    data: { ...rest, acceptedDiscoveryKeys: packList(acceptedDiscoveryKeys) },
+  });
+  res.status(201).json(brokerOut(b));
 });
 
 brokersRouter.patch("/:id", async (req, res) => {
@@ -47,14 +51,19 @@ brokersRouter.patch("/:id", async (req, res) => {
   const parsed = BrokerSchema.partial().safeParse(req.body);
   if (!parsed.success) return res.status(400).json(parsed.error);
 
+  const { acceptedDiscoveryKeys, ...rest } = parsed.data;
   const b = await prisma.broker.update({
     where: { id: req.params.id },
-    data: parsed.data,
+    data: {
+      ...rest,
+      ...(acceptedDiscoveryKeys !== undefined
+        ? { acceptedDiscoveryKeys: packList(acceptedDiscoveryKeys) }
+        : {}),
+    },
   });
-  res.json(b);
+  res.json(brokerOut(b));
 });
 
-// Soft delete — sets active: false
 brokersRouter.delete("/:id", async (req, res) => {
   const existing = await prisma.broker.findUnique({ where: { id: req.params.id } });
   if (!existing) return res.status(404).json({ error: "Not found" });

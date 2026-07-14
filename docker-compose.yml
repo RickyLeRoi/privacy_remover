@@ -1,51 +1,21 @@
 version: "3.9"
 services:
-  db:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: privacy_removal
-      POSTGRES_USER: privacy
-      POSTGRES_PASSWORD: removal
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    ports:
-      - "127.0.0.1:5432:5432"  # listen only on loopback
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U privacy -d privacy_removal"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
   app:
     build: .
     restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
     env_file: .env
-    # With Caddy enabled: remove the ports mapping below and let Caddy proxy
     ports:
-      - "127.0.0.1:3000:3000"  # never exposed publicly
+      # 20260701 RG - Bind su loopback: il servizio non va esposto in rete.
+      # Per raggiungerlo dalla LAN usare "3000:3000" (vedi docker-compose.vm.yml).
+      - "127.0.0.1:3000:3000"
     volumes:
-      - ./evidence:/app/evidence  # local encrypted storage for proof files
-
-  # ── Caddy reverse proxy (HTTPS on LAN / Tailscale) ───────────────────────
-  # Uncomment to enable HTTPS. Also remove the 'ports' mapping from 'app' above.
-  # caddy:
-  #   image: caddy:2-alpine
-  #   restart: unless-stopped
-  #   depends_on:
-  #     - app
-  #   ports:
-  #     - "80:80"
-  #     - "443:443"
-  #   volumes:
-  #     - ./Caddyfile:/etc/caddy/Caddyfile:ro
-  #     - caddy_data:/data
-  #     - caddy_config:/config
+      # 20260701 RG - Il file SQLite vive qui: senza questo volume i dati si
+      # perdono a ogni ricreazione del container.
+      - dbdata:/app/data
+      - ./evidence:/app/evidence
 
 volumes:
-  pgdata:
-  # caddy_data:
-  # caddy_config:
+  dbdata:
+
+# 20260701 RG - Per HTTPS su LAN/Tailscale serve un servizio caddy che faccia
+# reverse proxy su app:3000, togliendo il mapping 'ports' qui sopra. Vedi Caddyfile.

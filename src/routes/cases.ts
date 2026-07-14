@@ -1,16 +1,17 @@
 import { Router } from "express";
 import { z } from "zod";
 import { addDays } from "date-fns";
-import { CaseStatus, VerificationResult } from "@prisma/client";
+import { CaseStatus, VerificationResult } from "../lib/enums";
 import { prisma } from "../lib/prisma";
+import { packList } from "../lib/serialize";
 import { generateMessage } from "../services/templateService";
 import { sendEmail } from "../services/emailService";
+import { logErr } from "../index";
 
 export const casesRouter = Router();
 
 const OpenSchema = z.object({ personId: z.string(), brokerId: z.string() });
 
-// Open a removal case
 casesRouter.post("/", async (req, res) => {
   const parsed = OpenSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json(parsed.error);
@@ -30,7 +31,6 @@ casesRouter.post("/", async (req, res) => {
   res.status(201).json(c);
 });
 
-// List all cases, optionally filtered
 casesRouter.get("/", async (req, res) => {
   const cases = await prisma.removalCase.findMany({
     include: {
@@ -43,7 +43,6 @@ casesRouter.get("/", async (req, res) => {
   res.json(cases);
 });
 
-// Send the removal request for a case
 casesRouter.post("/:id/send", async (req, res) => {
   const c = await prisma.removalCase.findUnique({
     where: { id: req.params.id },
@@ -51,24 +50,31 @@ casesRouter.post("/:id/send", async (req, res) => {
   });
   if (!c) return res.status(404).json({ error: "Not found" });
 
-  // Build message from template — fullName never included in initial request
   const { subject, body, discoveryKeysUsed } = generateMessage(c.person, c.broker);
 
+  // 20260701 RG - Express 4 non intercetta le rejection async: senza questo catch
+  // un errore SMTP lascerebbe la richiesta appesa. Si esce prima di creare il
+  // messaggio, così la pratica non risulta inviata quando non lo è.
   let providerMsgId: string | undefined;
   if (c.broker.contactMethod === "email") {
-    providerMsgId = await sendEmail({
-      to: c.broker.contactTarget,
-      subject,
-      text: body,
-    });
+    try {
+      providerMsgId = await sendEmail({
+        to: c.broker.contactTarget,
+        subject,
+        text: body,
+      });
+    } catch (err) {
+      logErr("cases", `SMTP send failed for case ${c.id}`, err);
+      return res.status(502).json({ error: "Invio email fallito", detail: String(err) });
+    }
   }
-  // For form-based brokers, message is stored as draft for manual submission
+
   const msg = await prisma.outboundMessage.create({
     data: {
       caseId: c.id,
       channel: c.broker.contactMethod === "email" ? "email" : "form_manual",
       templateKey: `${c.broker.legalBasis}_erasure_v1`,
-      discoveryKeysUsed,
+      discoveryKeysUsed: packList(discoveryKeysUsed),
       fullNameIncluded: false,
       sentAt: c.broker.contactMethod === "email" ? new Date() : null,
       providerMsgId,
@@ -84,20 +90,21 @@ casesRouter.post("/:id/send", async (req, res) => {
   res.json({ caseId: c.id, messageId: msg.id, channel: msg.channel });
 });
 
-// Mark case as confirmed
 casesRouter.patch("/:id/confirm", async (req, res) => {
+  const existing = await prisma.removalCase.findUnique({ where: { id: req.params.id } });
+  if (!existing) return res.status(404).json({ error: "Not found" });
+
   const c = await prisma.removalCase.update({
     where: { id: req.params.id },
     data: {
       status: CaseStatus.CONFIRMED,
       closedAt: new Date(),
-      nextCheckAt: addDays(new Date(), 90), // re-check in 90 days
+      nextCheckAt: addDays(new Date(), 90),
     },
   });
   res.json(c);
 });
 
-// List all pending verification tasks
 casesRouter.get("/tasks/pending", async (_req, res) => {
   const tasks = await prisma.verificationTask.findMany({
     where: { executedAt: null },
@@ -114,7 +121,6 @@ casesRouter.get("/tasks/pending", async (_req, res) => {
   res.json(tasks);
 });
 
-// Record the result of a verification task
 const TaskResultSchema = z.object({
   result: z.enum(["removed", "still_present", "error"]),
   notes: z.string().optional(),
@@ -138,7 +144,6 @@ casesRouter.patch("/:caseId/tasks/:taskId", async (req, res) => {
     },
   });
 
-  // If still present, keep case open (NEEDS_RECHECK); if removed, confirm
   if (parsed.data.result === "removed") {
     await prisma.removalCase.update({
       where: { id: req.params.caseId },

@@ -1,10 +1,10 @@
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
-import { CaseStatus } from "@prisma/client";
+import { CaseStatus, EvidenceType } from "../lib/enums";
 import { prisma } from "../lib/prisma";
+import { writeEvidenceFile } from "../lib/evidenceStore";
 import { log, logErr } from "../index";
 
-// ─── Keyword patterns that signal a confirmed removal ────────────────────────
 const CONFIRMED_PATTERNS = [
   /removed?/i,
   /deleted?/i,
@@ -19,7 +19,6 @@ const CONFIRMED_PATTERNS = [
   /conferm/i,
 ];
 
-// Patterns that signal the broker denied or needs more info
 const DENIED_PATTERNS = [
   /unable to process/i,
   /cannot be processed/i,
@@ -30,7 +29,9 @@ const DENIED_PATTERNS = [
   /non (?:possiamo|è possibile)/i,
 ];
 
-// ─── Classify an email body ───────────────────────────────────────────────────
+// 20260701 RG - La classificazione è solo euristica su keyword: "removed" compare
+// anche in frasi negative ("cannot be removed"), quindi può chiudere una pratica
+// che invece è stata rifiutata. Verificare sempre a mano prima di fidarsi.
 function classify(subject: string, body: string | false): "confirmed" | "denied" | "unknown" {
   const text = `${subject} ${body}`;
   if (CONFIRMED_PATTERNS.some((r) => r.test(text))) return "confirmed";
@@ -38,9 +39,9 @@ function classify(subject: string, body: string | false): "confirmed" | "denied"
   return "unknown";
 }
 
-// ─── Match an inbound email to an open case ───────────────────────────────────
-// Strategy: find cases in SENT/AWAITING_RESPONSE status whose broker
-// contactTarget (email) matches the From address of the inbound email.
+// 20260701 RG - L'abbinamento avviene solo per uguaglianza esatta tra il mittente
+// e broker.contactTarget: se il broker risponde da un indirizzo diverso (noreply,
+// ticketing) la risposta non viene associata a nessuna pratica.
 async function matchCase(fromAddress: string) {
   const cases = await prisma.removalCase.findMany({
     where: {
@@ -58,11 +59,12 @@ async function matchCase(fromAddress: string) {
   );
 }
 
-// ─── Process a single parsed message ─────────────────────────────────────────
 async function processMessage(parsed: Awaited<ReturnType<typeof simpleParser>>) {
   const from = parsed.from?.value?.[0]?.address ?? "";
   const subject = parsed.subject ?? "";
-  const body = parsed.text ?? parsed.html ?? "";
+  // 20260701 RG - parsed.html è `string | false`: senza questa normalizzazione il
+  // valore `false` finirebbe stringificato dentro la prova salvata.
+  const body = parsed.text ?? (typeof parsed.html === "string" ? parsed.html : "");
 
   if (!from) return;
 
@@ -73,13 +75,16 @@ async function processMessage(parsed: Awaited<ReturnType<typeof simpleParser>>) 
   log("imap", `from=${from} | subject="${subject.slice(0, 60)}" → ${verdict} | ${matchedCases.length} case(s)`);
 
   for (const c of matchedCases) {
-    // Save the inbound email as Evidence regardless of verdict
+    const stored = writeEvidenceFile(
+      `imap-${c.id}-${Date.now()}.txt`,
+      `From: ${from}\nSubject: ${subject}\nDate: ${new Date().toISOString()}\n\n${body}`
+    );
     await prisma.evidence.create({
       data: {
         caseId: c.id,
-        type: "broker_response",
-        filePath: `imap-${c.id}-${Date.now()}.txt`,
-        checksum: Buffer.from(`${from}|${subject}|${Date.now()}`).toString("base64"),
+        type: EvidenceType.broker_response,
+        filePath: stored.filePath,
+        checksum: stored.checksum,
         encrypted: false,
       },
     });
@@ -100,7 +105,6 @@ async function processMessage(parsed: Awaited<ReturnType<typeof simpleParser>>) 
       });
       log("imap", `case ${c.id} → NEEDS_RECHECK (denied)`);
     } else {
-      // Unknown — flag for manual review
       await prisma.removalCase.update({
         where: { id: c.id },
         data: { status: CaseStatus.AWAITING_RESPONSE },
@@ -110,20 +114,20 @@ async function processMessage(parsed: Awaited<ReturnType<typeof simpleParser>>) 
   }
 }
 
-// ─── Main polling function ────────────────────────────────────────────────────
 export async function pollInbox() {
   const host = process.env.IMAP_HOST;
   const user = process.env.IMAP_USER;
   const pass = process.env.IMAP_PASS;
   const port = Number(process.env.IMAP_PORT ?? 993);
   const tls  = process.env.IMAP_TLS !== "false";
+  const mailbox = process.env.IMAP_MAILBOX || "INBOX";
 
   if (!host || !user || !pass) {
     log("imap", "IMAP_HOST / IMAP_USER / IMAP_PASS not configured — skipping poll");
     return;
   }
 
-  log("imap", `connecting to ${host}:${port} tls=${tls} user=${user}`);
+  log("imap", `connecting to ${host}:${port} tls=${tls} user=${user} mailbox=${mailbox}`);
 
   const client = new ImapFlow({
     host,
@@ -135,15 +139,22 @@ export async function pollInbox() {
 
   try {
     await client.connect();
-    log("imap", "connected, fetching UNSEEN messages");
-    const lock = await client.getMailboxLock("INBOX");
+    const lock = await client.getMailboxLock(mailbox);
     try {
-      // Fetch only UNSEEN messages to avoid re-processing
-      for await (const message of client.fetch("1:*", { source: true }, { uid: true })) {
+      // 20260701 RG - Elaborare solo i non letti è ciò che rende il poll idempotente:
+      // insieme al flag \Seen impostato sotto, evita di rigenerare prove e riscrivere
+      // gli stati delle pratiche a ogni giro.
+      const uids = await client.search({ seen: false }, { uid: true });
+      if (!uids || uids.length === 0) {
+        log("imap", `no unseen messages in ${mailbox}`);
+        return;
+      }
+      log("imap", `${uids.length} unseen message(s) in ${mailbox}`);
+
+      for await (const message of client.fetch(uids, { source: true }, { uid: true })) {
         if (!message.source) continue;
         const parsed = await (simpleParser as (source: Buffer) => Promise<import("mailparser").ParsedMail>)(message.source);
         await processMessage(parsed);
-        // Mark as Seen so we don't re-process on next poll
         await client.messageFlagsAdd(message.uid, ["\\Seen"], { uid: true });
       }
     } finally {

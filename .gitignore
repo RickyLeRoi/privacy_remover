@@ -12,6 +12,11 @@ backups/
 # Prisma client (generated)
 node_modules/.prisma/
 
+# SQLite database files (local dev)
+*.db
+*.db-journal
+data/
+
 # OS
 .DS_Store
 Thumbs.db

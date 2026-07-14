@@ -1,4 +1,6 @@
-import { PrismaClient, LegalBasis, ContactMethod, DiscoveryKey } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
+import { LegalBasis, ContactMethod, DiscoveryKey } from "./lib/enums";
+import { packList } from "./lib/serialize";
 
 const prisma = new PrismaClient();
 
@@ -176,7 +178,6 @@ const brokers = [
     acceptedDiscoveryKeys: [DiscoveryKey.email],
     notes: "Lento. Priorità media.",
   },
-  // ── Internazionali aggiuntivi ─────────────────────────────────
   {
     name: "PeopleFinder",
     country: "US",
@@ -227,9 +228,9 @@ const brokers = [
     acceptedDiscoveryKeys: [DiscoveryKey.email, DiscoveryKey.address],
     notes: "Marketing data aggregator. Opt-out via OneTrust portal.",
   },
-  // ── Broker italiani ───────────────────────────────────────────
-  // NOTA: questi broker richiedono flusso separato (form + PEC + ID).
-  // requiresFullName: true perché i registri italiani usano nome come chiave.
+  // 20260701 RG - I registri italiani usano il nome come chiave, quindi hanno
+  // requiresFullName: true. Vanno gestiti a mano (form + PEC + documento): il
+  // flusso automatico via email non li copre.
   {
     name: "PagineBianche (SEAT PG)",
     country: "IT",
@@ -287,10 +288,11 @@ const brokers = [
 async function main() {
   console.log("Seeding brokers...");
   for (const b of brokers) {
+    const { acceptedDiscoveryKeys, ...rest } = b;
     await prisma.broker.upsert({
       where: { name: b.name },
       update: {},
-      create: b,
+      create: { ...rest, acceptedDiscoveryKeys: packList(acceptedDiscoveryKeys) },
     });
     console.log("  ✓", b.name);
   }
