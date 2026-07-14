@@ -54,6 +54,10 @@ textarea{resize:vertical;min-height:90px}
 .skeleton{background:linear-gradient(90deg,var(--off) 25%,var(--off2) 50%,var(--off) 75%);background-size:200% 100%;animation:shimmer 1.4s ease-in-out infinite;border-radius:var(--r-sm)}
 @keyframes spin{to{transform:rotate(360deg)}}
 .spinner{width:16px;height:16px;border:2px solid var(--border-strong);border-top-color:var(--pri);border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+/* 20260701 RG - Regola mancante: il markup usa .hidden in 16 punti (login/shell,
+   campi del setup, icone dell'occhio) ma la classe non era definita, quindi non
+   nascondeva nulla. La pagina di login restava sopra la dashboard dopo l'accesso. */
+.hidden{display:none!important}
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .fade-in{animation:fadeIn .22s ease-out}
 @keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
@@ -211,7 +215,13 @@ td{padding:var(--sp3) var(--sp4);vertical-align:middle;font-variant-numeric:tabu
 
     <div class="field hidden" id="field-confirm">
       <label for="inp-token2">Conferma password</label>
-      <input id="inp-token2" type="password" placeholder="Ripeti la password" autocomplete="new-password"/>
+      <div class="pw-wrap">
+        <input id="inp-token2" type="password" placeholder="Ripeti la password" autocomplete="new-password"/>
+        <button type="button" class="pw-eye" id="btn-eye2" aria-label="Mostra password" title="Mostra password">
+          <svg id="eye2-open" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          <svg id="eye2-off" class="hidden" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+        </button>
+      </div>
     </div>
 
     <button class="btn btn-primary" id="btn-login" style="width:100%">
@@ -1357,16 +1367,22 @@ function exportData(format) {
 function showLogin(){ document.getElementById('view-login').classList.remove('hidden'); document.getElementById('view-shell').classList.add('hidden'); }
 function showShell(){ document.getElementById('view-login').classList.add('hidden'); document.getElementById('view-shell').classList.remove('hidden'); }
 
-// Occhio mostra/nascondi password
-document.getElementById('btn-eye').addEventListener('click', () => {
-  const inp = document.getElementById('inp-token');
-  const show = inp.type === 'password';
-  inp.type = show ? 'text' : 'password';
-  document.getElementById('eye-open').classList.toggle('hidden', show);
-  document.getElementById('eye-off').classList.toggle('hidden', !show);
-  document.getElementById('btn-eye').title = show ? 'Nascondi password' : 'Mostra password';
-  inp.focus();
-});
+// Occhio mostra/nascondi password: occhio normale = "mostra", occhio barrato =
+// "nascondi" (visibile solo quando la password è già in chiaro).
+function attachEye(btnId, inpId, openId, offId){
+  const btn = document.getElementById(btnId);
+  const inp = document.getElementById(inpId);
+  btn.addEventListener('click', () => {
+    const reveal = inp.type === 'password';
+    inp.type = reveal ? 'text' : 'password';
+    document.getElementById(openId).classList.toggle('hidden', reveal);
+    document.getElementById(offId).classList.toggle('hidden', !reveal);
+    btn.title = btn.ariaLabel = reveal ? 'Nascondi password' : 'Mostra password';
+    inp.focus();
+  });
+}
+attachEye('btn-eye',  'inp-token',  'eye-open',  'eye-off');
+attachEye('btn-eye2', 'inp-token2', 'eye2-open', 'eye2-off');
 
 // S.needsSetup: deciso da /api/auth/status al caricamento della pagina.
 function renderAuthMode(){
@@ -1433,6 +1449,7 @@ async function doLogin(){
         throw new Error(b.error || ('HTTP '+res.status));
       }
       S.needsSetup = false;
+      renderAuthMode();   // la schermata torna "login normale": Password, senza conferma
       toast('ok','Password impostata');
     }
 
