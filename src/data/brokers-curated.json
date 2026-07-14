@@ -1,0 +1,365 @@
+[
+ {
+  "name": "Spokeo",
+  "country": "US",
+  "legalBasis": "gdpr",
+  "contactMethod": "form",
+  "contactTarget": "https://www.spokeo.com/optout",
+  "portalUrl": "https://www.spokeo.com/optout",
+  "slaInDays": 10,
+  "requiresFullName": false,
+  "requiresIdProof": false,
+  "acceptedDiscoveryKeys": [
+   "email",
+   "phone"
+  ],
+  "category": "people_search"
+ },
+ {
+  "name": "BeenVerified",
+  "country": "US",
+  "legalBasis": "gdpr",
+  "contactMethod": "email",
+  "contactTarget": "optout@beenverified.com",
+  "portalUrl": "https://www.beenverified.com/app/optout/search",
+  "slaInDays": 30,
+  "requiresFullName": false,
+  "requiresIdProof": false,
+  "acceptedDiscoveryKeys": [
+   "email"
+  ],
+  "category": "people_search"
+ },
+ {
+  "name": "Whitepages",
+  "country": "US",
+  "legalBasis": "gdpr",
+  "contactMethod": "form",
+  "contactTarget": "https://www.whitepages.com/suppression-requests",
+  "portalUrl": "https://www.whitepages.com/suppression-requests",
+  "slaInDays": 14,
+  "requiresFullName": false,
+  "requiresIdProof": false,
+  "acceptedDiscoveryKeys": [
+   "email",
+   "phone",
+   "address"
+  ],
+  "category": "people_search",
+  "searchUrlTemplate": "https://www.whitepages.com/phone/{phone}",
+  "notes": "URL di ricerca precompilato: verificalo e correggilo dall'interfaccia se non funziona."
+ },
+ {
+  "name": "Radaris",
+  "country": "US",
+  "legalBasis": "gdpr",
+  "contactMethod": "form",
+  "contactTarget": "https://radaris.com/page/how-to-remove",
+  "portalUrl": "https://radaris.com/page/how-to-remove",
+  "slaInDays": 30,
+  "requiresFullName": true,
+  "requiresIdProof": false,
+  "acceptedDiscoveryKeys": [
+   "email",
+   "address"
+  ],
+  "notes": "Richiede conferma nome in fase di risposta.",
+  "category": "people_search"
+ },
+ {
+  "name": "Intelius",
+  "country": "US",
+  "legalBasis": "gdpr",
+  "contactMethod": "form",
+  "contactTarget": "https://www.intelius.com/opt-out",
+  "portalUrl": "https://www.intelius.com/opt-out",
+  "slaInDays": 30,
+  "requiresFullName": false,
+  "requiresIdProof": false,
+  "acceptedDiscoveryKeys": [
+   "email",
+   "phone"
+  ],
+  "category": "people_search"
+ },
+ {
+  "name": "PeekYou",
+  "country": "US",
+  "legalBasis": "gdpr",
+  "contactMethod": "form",
+  "contactTarget": "https://www.peekyou.com/about/contact/optout/",
+  "portalUrl": "https://www.peekyou.com/about/contact/optout/",
+  "slaInDays": 30,
+  "requiresFullName": false,
+  "requiresIdProof": false,
+  "acceptedDiscoveryKeys": [
+   "email"
+  ],
+  "category": "people_search"
+ },
+ {
+  "name": "Pipl",
+  "country": "US",
+  "legalBasis": "gdpr",
+  "contactMethod": "email",
+  "contactTarget": "privacy@pipl.com",
+  "portalUrl": "https://pipl.com/personal-information-removal-request",
+  "slaInDays": 30,
+  "requiresFullName": false,
+  "requiresIdProof": false,
+  "acceptedDiscoveryKeys": [
+   "email"
+  ],
+  "category": "people_search"
+ },
+ {
+  "name": "Truecaller",
+  "country": "SE",
+  "legalBasis": "gdpr",
+  "contactMethod": "form",
+  "contactTarget": "https://www.truecaller.com/unlisting",
+  "portalUrl": "https://www.truecaller.com/unlisting",
+  "slaInDays": 7,
+  "requiresFullName": false,
+  "requiresIdProof": false,
+  "acceptedDiscoveryKeys": [
+   "phone"
+  ],
+  "notes": "Registrato in Svezia, soggetto direttamente a GDPR. URL di ricerca precompilato: verificalo e correggilo dall'interfaccia se non funziona.",
+  "category": "people_search",
+  "searchUrlTemplate": "https://www.truecaller.com/search/it/{phone}"
+ },
+ {
+  "name": "PimEyes",
+  "country": "PL",
+  "legalBasis": "gdpr",
+  "contactMethod": "email",
+  "contactTarget": "opt-out@pimeyes.com",
+  "portalUrl": "https://pimeyes.com/en/opt-out",
+  "slaInDays": 30,
+  "requiresFullName": false,
+  "requiresIdProof": false,
+  "acceptedDiscoveryKeys": [
+   "email"
+  ],
+  "notes": "Motore di ricerca facciale. Alta priorità.",
+  "category": "people_search"
+ },
+ {
+  "name": "Acxiom",
+  "country": "US",
+  "legalBasis": "gdpr",
+  "contactMethod": "form",
+  "contactTarget": "https://www.acxiom.com/about-acxiom/privacy/gdpr/",
+  "portalUrl": "https://isapps.acxiom.com/optout/optout.aspx",
+  "slaInDays": 30,
+  "requiresFullName": false,
+  "requiresIdProof": false,
+  "acceptedDiscoveryKeys": [
+   "email",
+   "address"
+  ],
+  "category": "marketing"
+ },
+ {
+  "name": "LexisNexis",
+  "country": "US",
+  "legalBasis": "gdpr",
+  "contactMethod": "form",
+  "contactTarget": "https://optout.lexisnexis.com",
+  "portalUrl": "https://optout.lexisnexis.com",
+  "slaInDays": 30,
+  "requiresFullName": false,
+  "requiresIdProof": true,
+  "acceptedDiscoveryKeys": [
+   "email",
+   "address"
+  ],
+  "notes": "Richiede documento d'identità. Gestire con cifratura.",
+  "category": "credit"
+ },
+ {
+  "name": "FastPeopleSearch",
+  "country": "US",
+  "legalBasis": "opt_out",
+  "contactMethod": "form",
+  "contactTarget": "https://www.fastpeoplesearch.com/removal",
+  "portalUrl": "https://www.fastpeoplesearch.com/removal",
+  "slaInDays": 14,
+  "requiresFullName": false,
+  "requiresIdProof": false,
+  "acceptedDiscoveryKeys": [
+   "email",
+   "phone",
+   "address"
+  ],
+  "category": "people_search",
+  "searchUrlTemplate": "https://www.fastpeoplesearch.com/phone/{phone}",
+  "notes": "URL di ricerca precompilato: verificalo e correggilo dall'interfaccia se non funziona."
+ },
+ {
+  "name": "TruthFinder",
+  "country": "US",
+  "legalBasis": "opt_out",
+  "contactMethod": "form",
+  "contactTarget": "https://www.truthfinder.com/opt-out/",
+  "portalUrl": "https://www.truthfinder.com/opt-out/",
+  "slaInDays": 30,
+  "requiresFullName": false,
+  "requiresIdProof": false,
+  "acceptedDiscoveryKeys": [
+   "email",
+   "phone"
+  ],
+  "category": "people_search"
+ },
+ {
+  "name": "MyLife",
+  "country": "US",
+  "legalBasis": "ccpa",
+  "contactMethod": "form",
+  "contactTarget": "https://www.mylife.com/ccpa/index.pubview",
+  "portalUrl": "https://www.mylife.com/ccpa/index.pubview",
+  "slaInDays": 45,
+  "requiresFullName": false,
+  "requiresIdProof": false,
+  "acceptedDiscoveryKeys": [
+   "email"
+  ],
+  "notes": "Lento. Priorità media.",
+  "category": "people_search"
+ },
+ {
+  "name": "PeopleFinder",
+  "country": "US",
+  "legalBasis": "opt_out",
+  "contactMethod": "form",
+  "contactTarget": "https://www.peoplefinder.com/optout.php",
+  "portalUrl": "https://www.peoplefinder.com/optout.php",
+  "slaInDays": 10,
+  "requiresFullName": false,
+  "requiresIdProof": false,
+  "acceptedDiscoveryKeys": [
+   "email",
+   "phone",
+   "address"
+  ],
+  "category": "people_search"
+ },
+ {
+  "name": "CheckPeople",
+  "country": "US",
+  "legalBasis": "opt_out",
+  "contactMethod": "form",
+  "contactTarget": "https://www.checkpeople.com/opt-out",
+  "portalUrl": "https://www.checkpeople.com/opt-out",
+  "slaInDays": 14,
+  "requiresFullName": false,
+  "requiresIdProof": false,
+  "acceptedDiscoveryKeys": [
+   "email",
+   "phone"
+  ],
+  "category": "people_search"
+ },
+ {
+  "name": "MyHeritage",
+  "country": "IL",
+  "legalBasis": "gdpr",
+  "contactMethod": "email",
+  "contactTarget": "privacy@myheritage.com",
+  "portalUrl": "https://www.myheritage.com/gdpr",
+  "slaInDays": 30,
+  "requiresFullName": false,
+  "requiresIdProof": false,
+  "acceptedDiscoveryKeys": [
+   "email"
+  ],
+  "notes": "Genealogy platform. Richiesta GDPR Art.17.",
+  "category": "other"
+ },
+ {
+  "name": "Epsilon (Conversant)",
+  "country": "US",
+  "legalBasis": "opt_out",
+  "contactMethod": "form",
+  "contactTarget": "https://privacyportal.onetrust.com/webform/65571c3e-d7ed-4ce5-b3ed-4bdb1e59d1cc/e2c8d46f-e7fa-40dc-936c-c9a5db0c8a21",
+  "portalUrl": "https://www.epsilon.com/us/privacy-policy",
+  "slaInDays": 30,
+  "requiresFullName": false,
+  "requiresIdProof": false,
+  "acceptedDiscoveryKeys": [
+   "email",
+   "address"
+  ],
+  "notes": "Marketing data aggregator. Opt-out via OneTrust portal.",
+  "category": "marketing"
+ },
+ {
+  "name": "PagineBianche (SEAT PG)",
+  "country": "IT",
+  "legalBasis": "gdpr",
+  "contactMethod": "form",
+  "contactTarget": "https://www.paginebianche.it/opt-out",
+  "portalUrl": "https://www.paginebianche.it/opt-out",
+  "slaInDays": 30,
+  "requiresFullName": true,
+  "requiresIdProof": true,
+  "acceptedDiscoveryKeys": [
+   "phone",
+   "address"
+  ],
+  "notes": "Registro italiano. Flusso separato: form ufficiale + copia documento. Risposta entro 30gg per GDPR.",
+  "category": "registry"
+ },
+ {
+  "name": "PagineGialle (SEAT PG)",
+  "country": "IT",
+  "legalBasis": "gdpr",
+  "contactMethod": "form",
+  "contactTarget": "https://www.paginegialle.it/opt-out",
+  "portalUrl": "https://www.paginegialle.it/opt-out",
+  "slaInDays": 30,
+  "requiresFullName": true,
+  "requiresIdProof": true,
+  "acceptedDiscoveryKeys": [
+   "phone",
+   "address"
+  ],
+  "notes": "Stesso operatore di PagineBianche (SEAT PG SpA). Richiesta separata.",
+  "category": "registry"
+ },
+ {
+  "name": "Atoka (Cerved)",
+  "country": "IT",
+  "legalBasis": "gdpr",
+  "contactMethod": "email",
+  "contactTarget": "privacy@cerved.com",
+  "portalUrl": "https://atoka.io",
+  "slaInDays": 30,
+  "requiresFullName": true,
+  "requiresIdProof": false,
+  "acceptedDiscoveryKeys": [
+   "email",
+   "address"
+  ],
+  "notes": "Database imprenditoriale italiano. Richiedere cancellazione via email DPO Cerved.",
+  "category": "credit"
+ },
+ {
+  "name": "Oracle BlueKai",
+  "country": "US",
+  "legalBasis": "gdpr",
+  "contactMethod": "form",
+  "contactTarget": "https://www.oracle.com/legal/privacy/marketing-cloud-data-cloud-privacy-policy.html#optout",
+  "portalUrl": "https://datacloudoptout.oracle.com/optout",
+  "slaInDays": 30,
+  "requiresFullName": false,
+  "requiresIdProof": false,
+  "acceptedDiscoveryKeys": [
+   "email"
+  ],
+  "notes": "Oracle Data Cloud / BlueKai. Opt-out via Oracle datacloudoptout portal. Rimozione interesse comportamentale e demografico.",
+  "category": "adtech"
+ }
+]

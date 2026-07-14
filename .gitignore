@@ -15,7 +15,10 @@ node_modules/.prisma/
 # SQLite database files (local dev)
 *.db
 *.db-journal
-data/
+# 20260714 RG - Ancorato alla radice: senza lo slash iniziale la regola prendeva
+# anche src/data/, cioe' il catalogo broker, che DEVE stare nel repo (seed.ts lo
+# importa e senza di lui `npm run build` non compila).
+/data/
 
 # OS
 .DS_Store
