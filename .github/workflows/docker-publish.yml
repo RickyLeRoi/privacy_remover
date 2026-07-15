@@ -23,7 +23,7 @@ jobs:
       packages: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # QEMU serve solo per la build arm64. Se un giorno la VM è solo amd64, si può
       # togliere questo step (e arm64 da `platforms`) e la build dimezza i tempi.
