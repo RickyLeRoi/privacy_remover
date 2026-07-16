@@ -51,6 +51,12 @@ app.use(
         imgSrc: ["'self'", "data:"],
         objectSrc: ["'none'"],
         frameAncestors: ["'none'"],
+        // 20260716 RG - helmet con useDefaults (attivo) reinserisce di suo
+        // `upgrade-insecure-requests`: quella direttiva forza ogni fetch da http a
+        // https e, senza TLS sulla LAN/in Docker, le chiamate a /api falliscono con
+        // "failed to fetch" mentre la pagina carica. La tolgo con null, coerente con
+        // hsts:false qui sotto.
+        upgradeInsecureRequests: null,
       },
     },
     // L'app gira anche in HTTP puro sulla LAN: HSTS bloccherebbe l'accesso.
