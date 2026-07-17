@@ -45,6 +45,12 @@ app.use(
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com"],
+        // 20260717 RG - helmet (useDefaults) mette `script-src-attr 'none'`, che è una
+        // direttiva a sé e NON è coperta da `'unsafe-inline'` di script-src: blocca gli
+        // handler inline (onclick, onchange...). La UI in public/index.html ne usa ~46,
+        // incluso il pulsante Salva delle Person, quindi senza questo i click non fanno
+        // nulla. Coerente con l'unsafe-inline già accettato sopra per gli script inline.
+        scriptSrcAttr: ["'unsafe-inline'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://api.fontshare.com"],
         fontSrc: ["'self'", "https://cdn.fontshare.com", "data:"],
         connectSrc: ["'self'"],
